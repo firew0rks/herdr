@@ -413,8 +413,7 @@ pub(super) fn compute_pane_infos_for_tab(
         let mut inner_rect = pane_inner;
         let mut scrollbar_rect = None;
         if let Some(rt) = app.runtime_for_pane_in_workspace(terminal_runtimes, ws_idx, focused_id) {
-            (inner_rect, scrollbar_rect) =
-                stable_scrollbar_gutter(rt, pane_inner, app);
+            (inner_rect, scrollbar_rect) = stable_scrollbar_gutter(rt, pane_inner, app);
             if resize_panes
                 && tab.terminal_id(focused_id).is_some_and(|terminal_id| {
                     !app.direct_attach_resize_locks.contains(terminal_id)
@@ -451,8 +450,7 @@ pub(super) fn compute_pane_infos_for_tab(
         let mut inner_rect = pane_inner;
         let mut scrollbar_rect = None;
         if let Some(rt) = app.runtime_for_pane_in_workspace(terminal_runtimes, ws_idx, info.id) {
-            (inner_rect, scrollbar_rect) =
-                stable_scrollbar_gutter(rt, pane_inner, app);
+            (inner_rect, scrollbar_rect) = stable_scrollbar_gutter(rt, pane_inner, app);
             if resize_panes
                 && tab.terminal_id(info.id).is_some_and(|terminal_id| {
                     !app.direct_attach_resize_locks.contains(terminal_id)

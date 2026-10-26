@@ -2317,9 +2317,20 @@ impl ClientShellState {
                     .hits
                     .panes
                     .iter()
-                    .find(|hit| super::contains(hit.inner_rect, point))
+                    .find(|hit| super::contains(hit.rect, point))
                     .cloned()
                 {
+                    // Wheel anywhere on the pane, padding included, scrolls it as if over the text.
+                    let inner = hit.inner_rect;
+                    let mouse = MouseEvent {
+                        column: mouse
+                            .column
+                            .clamp(inner.x, inner.right().saturating_sub(1).max(inner.x)),
+                        row: mouse
+                            .row
+                            .clamp(inner.y, inner.bottom().saturating_sub(1).max(inner.y)),
+                        ..mouse
+                    };
                     if self.focused_pane_id().as_deref() != Some(hit.pane_id.as_str()) {
                         self.push_endpoint_method(
                             crate::api::schema::Method::PaneFocus(crate::api::schema::PaneTarget {

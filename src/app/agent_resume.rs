@@ -336,8 +336,10 @@ fn derived_pending_agent_resume_pane_infos(
     .into_iter()
     .map(|mut info| {
         let pane_inner = crate::ui::pane_inner_rect(info.rect, info.borders);
-        info.inner_rect =
-            crate::ui::centered_to_max_width(stable_terminal_inner_rect(pane_inner), pane_max_width);
+        info.inner_rect = crate::ui::centered_to_max_width(
+            stable_terminal_inner_rect(pane_inner),
+            pane_max_width,
+        );
         info
     })
     .collect()

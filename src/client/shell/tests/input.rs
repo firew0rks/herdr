@@ -1051,3 +1051,35 @@ fn committed_text_still_reaches_a_report_all_pane_as_text() {
     let after = state.handle_input_bytes("\u{3042}".as_bytes());
     assert_eq!(pane_text_commits(&after).concat(), "\u{3042}");
 }
+
+#[test]
+fn wheel_in_pane_padding_scrolls_the_pane_at_the_nearest_text_cell() {
+    let mut state = ClientShellState::new(ClientShellConfig::from_config(&Config::default()));
+    state.set_snapshot(Box::new(snapshot()));
+    state.set_pane_surface(surface());
+    state.compose(106, 20).expect("composed frame");
+    let pane = &mut state.hits.panes[0];
+    pane.rect = ratatui::layout::Rect::new(26, 1, 60, 10);
+    pane.inner_rect = ratatui::layout::Rect::new(36, 1, 40, 10);
+    let (row, right) = (pane.inner_rect.y, pane.inner_rect.right());
+    let last_col = pane.inner_rect.width - 1;
+
+    let wheel = state.handle_raw_events(vec![RawInputEvent::Mouse(crossterm::event::MouseEvent {
+        kind: MouseEventKind::ScrollUp,
+        column: right + 5,
+        row,
+        modifiers: KeyModifiers::empty(),
+    })]);
+    assert!(wheel.requests.iter().any(|request| matches!(
+        request,
+        ClientMessage::ClientShellPaneInput { events, .. }
+            if matches!(
+                &events[..],
+                [ClientPaneInputEvent::Mouse {
+                    kind: crate::protocol::ClientMouseKind::ScrollUp,
+                    position: ClientMousePosition::Cell { column, row: 0 },
+                    ..
+                }] if *column == last_col
+            )
+    )));
+}
