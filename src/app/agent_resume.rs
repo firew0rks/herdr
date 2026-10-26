@@ -152,6 +152,7 @@ impl App {
             self.state.pane_borders,
             self.state.pane_gaps,
             self.state.pane_outer_borders,
+            self.state.pane_max_width,
         );
 
         if self.state.active == Some(ws_idx)
@@ -324,6 +325,7 @@ fn derived_pending_agent_resume_pane_infos(
     pane_borders: crate::config::PaneBordersConfig,
     pane_gaps: bool,
     pane_outer_borders: bool,
+    pane_max_width: u16,
 ) -> Vec<crate::layout::PaneInfo> {
     crate::ui::apply_pane_chrome(
         tab.layout.panes(terminal_area),
@@ -334,7 +336,8 @@ fn derived_pending_agent_resume_pane_infos(
     .into_iter()
     .map(|mut info| {
         let pane_inner = crate::ui::pane_inner_rect(info.rect, info.borders);
-        info.inner_rect = stable_terminal_inner_rect(pane_inner);
+        info.inner_rect =
+            crate::ui::centered_to_max_width(stable_terminal_inner_rect(pane_inner), pane_max_width);
         info
     })
     .collect()

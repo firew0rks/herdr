@@ -542,6 +542,7 @@ impl App {
             pane_outer_borders: config.ui.pane_outer_borders,
             pane_scrollbars: config.ui.pane_scrollbars,
             pane_gaps: config.ui.pane_gaps,
+            pane_max_width: config.ui.pane_max_width,
             show_agent_labels_on_pane_borders: config.ui.show_agent_labels_on_pane_borders,
             tab_bar_right: Vec::new(),
             tab_bar_right_separator: String::new(),
@@ -914,6 +915,7 @@ impl App {
                 self.state.pane_outer_borders = config.ui.pane_outer_borders;
                 self.state.pane_scrollbars = config.ui.pane_scrollbars;
                 self.state.pane_gaps = config.ui.pane_gaps;
+                self.state.pane_max_width = config.ui.pane_max_width;
                 self.state.show_agent_labels_on_pane_borders =
                     config.ui.show_agent_labels_on_pane_borders;
                 self.configure_tab_bar_status(

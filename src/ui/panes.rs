@@ -33,11 +33,32 @@ fn pane_border_title(label: &str, pane_width: u16, _focused: bool) -> Option<Str
 
 // Full view computation reaches this helper for active and background panes.
 // Keep terminal queries narrow, allocation-free, and short under the core lock.
-fn terminal_inner_rect(rt: &TerminalRuntime, pane_inner: Rect, pane_scrollbars: bool) -> Rect {
-    terminal_inner_rect_for(pane_inner, pane_scrollbars && !rt.alternate_screen_active())
+fn terminal_inner_rect(rt: &TerminalRuntime, pane_inner: Rect, app: &AppState) -> Rect {
+    terminal_inner_rect_for(
+        pane_inner,
+        app.pane_scrollbars && !rt.alternate_screen_active(),
+        app.pane_max_width,
+    )
 }
 
-fn terminal_inner_rect_for(pane_inner: Rect, scrollbar_gutter: bool) -> Rect {
+fn terminal_inner_rect_for(pane_inner: Rect, scrollbar_gutter: bool, max_width: u16) -> Rect {
+    centered_to_max_width(without_gutter(pane_inner, scrollbar_gutter), max_width)
+}
+
+/// Narrows a wide terminal to `max_width` columns, centred, so lines stay a
+/// readable length. Zero means no cap.
+pub(crate) fn centered_to_max_width(rect: Rect, max_width: u16) -> Rect {
+    if max_width == 0 || rect.width <= max_width {
+        return rect;
+    }
+    Rect {
+        x: rect.x + (rect.width - max_width) / 2,
+        width: max_width,
+        ..rect
+    }
+}
+
+fn without_gutter(pane_inner: Rect, scrollbar_gutter: bool) -> Rect {
     if !scrollbar_gutter || pane_inner.width <= 4 {
         return pane_inner;
     }
@@ -145,7 +166,7 @@ pub(crate) fn new_layout_terminal_sizes(
 
 fn new_terminal_size(app: &AppState, pane_inner: Rect) -> (u16, u16) {
     // A new program starts on the primary screen, which reserves the gutter.
-    let inner = terminal_inner_rect_for(pane_inner, app.pane_scrollbars);
+    let inner = terminal_inner_rect_for(pane_inner, app.pane_scrollbars, app.pane_max_width);
     (
         inner.height.max(crate::pane::MIN_PANE_ROWS),
         inner.width.max(crate::pane::MIN_PANE_COLS),
@@ -290,10 +311,11 @@ fn runtime_for_tab_pane<'a>(
 fn stable_scrollbar_gutter(
     rt: &TerminalRuntime,
     pane_inner: Rect,
-    pane_scrollbars: bool,
+    app: &AppState,
 ) -> (Rect, Option<Rect>) {
-    let inner_rect = terminal_inner_rect(rt, pane_inner, pane_scrollbars);
-    if inner_rect == pane_inner {
+    let inner_rect = terminal_inner_rect(rt, pane_inner, app);
+    let gutter_reserved = app.pane_scrollbars && !rt.alternate_screen_active();
+    if without_gutter(pane_inner, gutter_reserved) == pane_inner {
         return (inner_rect, None);
     }
     let gutter = Rect::new(
@@ -327,7 +349,7 @@ pub(super) fn resize_tab_panes(
             runtime_for_tab_pane(app, terminal_runtimes, workspace_index, tab, focused_id)
         {
             let pane_inner = pane_inner_rect(area, zoomed_pane_borders(app, multi_pane));
-            let inner_rect = terminal_inner_rect(rt, pane_inner, app.pane_scrollbars);
+            let inner_rect = terminal_inner_rect(rt, pane_inner, app);
             if !app.direct_attach_resize_locks.contains(terminal_id) {
                 rt.resize(
                     inner_rect.height,
@@ -351,7 +373,7 @@ pub(super) fn resize_tab_panes(
         if let Some((terminal_id, rt)) =
             runtime_for_tab_pane(app, terminal_runtimes, workspace_index, tab, info.id)
         {
-            let inner_rect = terminal_inner_rect(rt, pane_inner, app.pane_scrollbars);
+            let inner_rect = terminal_inner_rect(rt, pane_inner, app);
             if !app.direct_attach_resize_locks.contains(terminal_id) {
                 rt.resize(
                     inner_rect.height,
@@ -392,7 +414,7 @@ pub(super) fn compute_pane_infos_for_tab(
         let mut scrollbar_rect = None;
         if let Some(rt) = app.runtime_for_pane_in_workspace(terminal_runtimes, ws_idx, focused_id) {
             (inner_rect, scrollbar_rect) =
-                stable_scrollbar_gutter(rt, pane_inner, app.pane_scrollbars);
+                stable_scrollbar_gutter(rt, pane_inner, app);
             if resize_panes
                 && tab.terminal_id(focused_id).is_some_and(|terminal_id| {
                     !app.direct_attach_resize_locks.contains(terminal_id)
@@ -430,7 +452,7 @@ pub(super) fn compute_pane_infos_for_tab(
         let mut scrollbar_rect = None;
         if let Some(rt) = app.runtime_for_pane_in_workspace(terminal_runtimes, ws_idx, info.id) {
             (inner_rect, scrollbar_rect) =
-                stable_scrollbar_gutter(rt, pane_inner, app.pane_scrollbars);
+                stable_scrollbar_gutter(rt, pane_inner, app);
             if resize_panes
                 && tab.terminal_id(info.id).is_some_and(|terminal_id| {
                     !app.direct_attach_resize_locks.contains(terminal_id)
@@ -1151,6 +1173,15 @@ mod tests {
         assert_eq!(right.rect, Rect::new(50, 0, 50, 20));
         assert!(left.borders.is_empty());
         assert!(right.borders.is_empty());
+    }
+
+    #[test]
+    fn max_width_centres_a_wide_terminal_and_leaves_a_narrow_one() {
+        let wide = Rect::new(10, 2, 120, 30);
+        assert_eq!(centered_to_max_width(wide, 90), Rect::new(25, 2, 90, 30));
+        assert_eq!(centered_to_max_width(wide, 0), wide);
+        let narrow = Rect::new(10, 2, 80, 30);
+        assert_eq!(centered_to_max_width(narrow, 90), narrow);
     }
 
     #[test]
