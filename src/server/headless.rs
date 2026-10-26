@@ -878,6 +878,8 @@ impl HeadlessServer {
         self.server_config_diagnostic_without_keybindings =
             server_config_diagnostic_without_keybindings;
         self.sync_foreground_client_state();
+        // Pane chrome settings change terminal sizes; apply them to open panes now.
+        self.resize_shared_runtime_to_effective_size_before_input();
         report
     }
 

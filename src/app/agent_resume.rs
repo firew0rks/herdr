@@ -327,11 +327,14 @@ fn derived_pending_agent_resume_pane_infos(
     pane_outer_borders: bool,
     pane_max_width: u16,
 ) -> Vec<crate::layout::PaneInfo> {
-    crate::ui::apply_pane_chrome(
-        tab.layout.panes(terminal_area),
-        pane_borders,
-        pane_gaps,
-        pane_outer_borders,
+    crate::ui::frame_panes(
+        crate::ui::apply_pane_chrome(
+            tab.layout.panes(terminal_area),
+            pane_borders,
+            pane_gaps,
+            pane_outer_borders,
+        ),
+        pane_max_width,
     )
     .into_iter()
     .map(|mut info| {
