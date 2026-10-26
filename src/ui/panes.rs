@@ -33,11 +33,21 @@ fn pane_border_title(label: &str, pane_width: u16, _focused: bool) -> Option<Str
 
 // Full view computation reaches this helper for active and background panes.
 // Keep terminal queries narrow, allocation-free, and short under the core lock.
-fn terminal_inner_rect(rt: &TerminalRuntime, pane_inner: Rect, app: &AppState) -> Rect {
+fn terminal_inner_rect(
+    rt: &TerminalRuntime,
+    pane: PaneId,
+    pane_inner: Rect,
+    app: &AppState,
+) -> Rect {
+    let max_width = if app.full_width_panes.contains(&pane) {
+        0
+    } else {
+        app.pane_max_width
+    };
     terminal_inner_rect_for(
         pane_inner,
         app.pane_scrollbars && !rt.alternate_screen_active(),
-        app.pane_max_width,
+        max_width,
     )
 }
 
@@ -310,10 +320,11 @@ fn runtime_for_tab_pane<'a>(
 
 fn stable_scrollbar_gutter(
     rt: &TerminalRuntime,
+    pane: PaneId,
     pane_inner: Rect,
     app: &AppState,
 ) -> (Rect, Option<Rect>) {
-    let inner_rect = terminal_inner_rect(rt, pane_inner, app);
+    let inner_rect = terminal_inner_rect(rt, pane, pane_inner, app);
     let gutter_reserved = app.pane_scrollbars && !rt.alternate_screen_active();
     if without_gutter(pane_inner, gutter_reserved) == pane_inner {
         return (inner_rect, None);
@@ -349,7 +360,7 @@ pub(super) fn resize_tab_panes(
             runtime_for_tab_pane(app, terminal_runtimes, workspace_index, tab, focused_id)
         {
             let pane_inner = pane_inner_rect(area, zoomed_pane_borders(app, multi_pane));
-            let inner_rect = terminal_inner_rect(rt, pane_inner, app);
+            let inner_rect = terminal_inner_rect(rt, focused_id, pane_inner, app);
             if !app.direct_attach_resize_locks.contains(terminal_id) {
                 rt.resize(
                     inner_rect.height,
@@ -373,7 +384,7 @@ pub(super) fn resize_tab_panes(
         if let Some((terminal_id, rt)) =
             runtime_for_tab_pane(app, terminal_runtimes, workspace_index, tab, info.id)
         {
-            let inner_rect = terminal_inner_rect(rt, pane_inner, app);
+            let inner_rect = terminal_inner_rect(rt, info.id, pane_inner, app);
             if !app.direct_attach_resize_locks.contains(terminal_id) {
                 rt.resize(
                     inner_rect.height,
@@ -413,7 +424,7 @@ pub(super) fn compute_pane_infos_for_tab(
         let mut inner_rect = pane_inner;
         let mut scrollbar_rect = None;
         if let Some(rt) = app.runtime_for_pane_in_workspace(terminal_runtimes, ws_idx, focused_id) {
-            (inner_rect, scrollbar_rect) = stable_scrollbar_gutter(rt, pane_inner, app);
+            (inner_rect, scrollbar_rect) = stable_scrollbar_gutter(rt, focused_id, pane_inner, app);
             if resize_panes
                 && tab.terminal_id(focused_id).is_some_and(|terminal_id| {
                     !app.direct_attach_resize_locks.contains(terminal_id)
@@ -450,7 +461,7 @@ pub(super) fn compute_pane_infos_for_tab(
         let mut inner_rect = pane_inner;
         let mut scrollbar_rect = None;
         if let Some(rt) = app.runtime_for_pane_in_workspace(terminal_runtimes, ws_idx, info.id) {
-            (inner_rect, scrollbar_rect) = stable_scrollbar_gutter(rt, pane_inner, app);
+            (inner_rect, scrollbar_rect) = stable_scrollbar_gutter(rt, info.id, pane_inner, app);
             if resize_panes
                 && tab.terminal_id(info.id).is_some_and(|terminal_id| {
                     !app.direct_attach_resize_locks.contains(terminal_id)
@@ -1361,6 +1372,36 @@ mod tests {
         assert_eq!(info.rect, area);
         assert_eq!(info.scrollbar_rect, None);
         assert_eq!(info.inner_rect, Rect::new(10, 3, 39, 8));
+    }
+
+    #[tokio::test]
+    async fn full_width_pane_ignores_pane_max_width() {
+        let mut app = AppState::test_new();
+        app.pane_max_width = 20;
+        let mut workspace = Workspace::test_new("test");
+        let root_pane = workspace.tabs[0].root_pane;
+        workspace.tabs[0].runtimes.insert(
+            root_pane,
+            TerminalRuntime::test_with_scrollback_bytes(40, 8, 1024, b"ready\n"),
+        );
+        app.workspaces = vec![workspace];
+        app.active = Some(0);
+        let area = Rect::new(10, 3, 40, 8);
+        let terminal_runtimes = TerminalRuntimeRegistry::new();
+        let inner = |app: &AppState| {
+            compute_pane_infos(
+                app,
+                &terminal_runtimes,
+                area,
+                false,
+                crate::kitty_graphics::HostCellSize::default(),
+            )[0]
+            .inner_rect
+        };
+
+        assert_eq!(inner(&app), Rect::new(19, 3, 20, 8));
+        app.full_width_panes.insert(root_pane);
+        assert_eq!(inner(&app), Rect::new(10, 3, 39, 8));
     }
 
     #[tokio::test]

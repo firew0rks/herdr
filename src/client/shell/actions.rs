@@ -1103,6 +1103,9 @@ impl ClientShellState {
             KeybindAction::ClearPane => Some(Method::PaneClear(PaneTarget {
                 pane_id: focused_pane?,
             })),
+            KeybindAction::FullWidth => Some(Method::PaneFullWidthToggle(PaneTarget {
+                pane_id: focused_pane?,
+            })),
             KeybindAction::EditScrollback => Some(Method::PaneEditScrollback(PaneTarget {
                 pane_id: focused_pane?,
             })),

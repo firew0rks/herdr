@@ -1164,6 +1164,9 @@ impl App {
             Method::PaneResize(params) => return self.handle_pane_resize(request.id, params),
             Method::PaneScroll(params) => return self.handle_pane_scroll(request.id, params),
             Method::PaneClear(target) => return self.handle_pane_clear(request.id, target),
+            Method::PaneFullWidthToggle(target) => {
+                return self.handle_pane_full_width_toggle(request.id, target);
+            }
             Method::PaneEditScrollback(target) => {
                 return self.handle_pane_edit_scrollback(request.id, target);
             }
