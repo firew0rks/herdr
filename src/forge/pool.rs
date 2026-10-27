@@ -16,6 +16,7 @@ const BUSY: Duration = Duration::from_secs(15);
 /// PR named by `forge.refresh --pr` keeps its checks fetched.
 pub(crate) const INTEREST: Duration = Duration::from_secs(30 * 60);
 const WORKFLOWS_EVERY: Duration = Duration::from_secs(10 * 60);
+const DETAILS_EVERY: Duration = Duration::from_secs(5 * 60);
 const FIRST_FETCH_WAIT: Duration = Duration::from_secs(60);
 const REFRESH_WAIT: Duration = Duration::from_secs(120);
 
@@ -79,6 +80,25 @@ fn now_rfc3339() -> String {
         .unwrap_or_default()
 }
 
+/// Between detail sweeps, unwatched PRs keep the merge state and review
+/// decision of the last sweep; a new head commit makes the merge state unknown.
+fn carry_details(prs: &mut [crate::api::schema::ForgePullRequest], old: Option<&ForgeSnapshot>) {
+    for pr in prs.iter_mut().filter(|pr| pr.checks.is_none()) {
+        let previous = old.and_then(|old| old.prs.iter().find(|prev| prev.number == pr.number));
+        match previous {
+            Some(prev) => {
+                pr.review_decision.clone_from(&prev.review_decision);
+                pr.merge_state = if prev.head_sha == pr.head_sha {
+                    prev.merge_state.clone()
+                } else {
+                    "UNKNOWN".into()
+                };
+            }
+            None => pr.merge_state = "UNKNOWN".into(),
+        }
+    }
+}
+
 fn same_data(a: &ForgeSnapshot, b: &ForgeSnapshot) -> bool {
     ForgeSnapshot {
         fetched_at: None,
@@ -105,6 +125,7 @@ struct Repo {
     fetched: Option<Instant>,
     due: Option<Instant>,
     workflows_at: Option<Instant>,
+    details_at: Option<Instant>,
 }
 
 impl Repo {
@@ -326,16 +347,19 @@ impl Pool {
                 workflows: entry
                     .workflows_at
                     .is_none_or(|at| now.duration_since(at) >= WORKFLOWS_EVERY),
+                details: entry
+                    .details_at
+                    .is_none_or(|at| now.duration_since(at) >= DETAILS_EVERY),
             }
         };
         let result = github::fetch(&self.gh, &plan);
-        self.finish_fetch(repo, plan.workflows, result);
+        self.finish_fetch(repo, &plan, result);
     }
 
     fn finish_fetch(
         self: &Arc<Self>,
         repo: &str,
-        asked_workflows: bool,
+        plan: &Plan,
         result: Result<github::Fetched, String>,
     ) {
         let now = Instant::now();
@@ -346,9 +370,14 @@ impl Pool {
         let entry = inner.repos.entry(repo.into()).or_default();
         let old = entry.snapshot.take();
         let new = match result {
-            Ok(fetched) => {
-                if asked_workflows {
+            Ok(mut fetched) => {
+                if plan.workflows {
                     entry.workflows_at = Some(now);
+                }
+                if plan.details {
+                    entry.details_at = Some(now);
+                } else {
+                    carry_details(&mut fetched.prs, old.as_ref());
                 }
                 entry.fetched = Some(now);
                 ForgeSnapshot {

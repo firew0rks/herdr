@@ -23,6 +23,10 @@ pub(crate) struct Plan {
     pub check_branches: BTreeSet<String>,
     pub check_prs: BTreeSet<u64>,
     pub workflows: bool,
+    /// Ask for merge state and review decision on every open PR, not only the
+    /// watched ones. GitHub computes both on read: they cost about 9s per page
+    /// of 25, so the pool asks only every few minutes.
+    pub details: bool,
 }
 
 #[derive(Debug)]
@@ -38,11 +42,47 @@ pub(crate) fn fetch(gh: &Gh, plan: &Plan) -> Result<Fetched, String> {
         .repo
         .split_once('/')
         .ok_or_else(|| format!("invalid repo: {}", plan.repo))?;
+    let actions = || -> Result<_, String> {
+        let runs = runs(gh, &plan.repo)?;
+        let workflows = plan
+            .workflows
+            .then(|| workflows(gh, &plan.repo))
+            .transpose()?;
+        Ok((runs, workflows))
+    };
+    // PR pages must run in order; Actions reads overlap them to cut a fetch's
+    // wall time.
+    std::thread::scope(|scope| {
+        let background = std::thread::Builder::new()
+            .name("herdr-forge-actions".into())
+            .spawn_scoped(scope, actions);
+        let (viewer, prs) = pull_requests_with_checks(gh, plan, owner, name)?;
+        let (runs, workflows) = match background {
+            Ok(handle) => handle
+                .join()
+                .unwrap_or_else(|_| Err("actions fetch panicked".into()))?,
+            Err(_) => actions()?,
+        };
+        Ok(Fetched {
+            viewer,
+            prs,
+            runs,
+            workflows,
+        })
+    })
+}
+
+fn pull_requests_with_checks(
+    gh: &Gh,
+    plan: &Plan,
+    owner: &str,
+    name: &str,
+) -> Result<(String, Vec<ForgePullRequest>), String> {
     let viewer = match &plan.viewer {
         Some(viewer) => viewer.clone(),
         None => viewer_login(gh)?,
     };
-    let mut prs = pull_requests(gh, owner, name)?;
+    let mut prs = pull_requests(gh, owner, name, plan.details)?;
     let watched: Vec<u64> = prs
         .iter()
         .filter(|pr| {
@@ -53,24 +93,18 @@ pub(crate) fn fetch(gh: &Gh, plan: &Plan) -> Result<Fetched, String> {
         .map(|pr| pr.number)
         .collect();
     for batch in watched.chunks(CHECK_BATCH) {
-        let mut checks = checks(gh, owner, name, batch)?;
+        let mut rollups = rollups(gh, owner, name, batch)?;
         for pr in prs.iter_mut() {
-            if let Some(found) = checks.remove(&pr.number) {
-                pr.checks = Some(found);
+            if let Some(rollup) = rollups.remove(&pr.number) {
+                if let Some(merge_state) = rollup.merge_state_status.clone() {
+                    pr.merge_state = merge_state;
+                }
+                pr.review_decision.clone_from(&rollup.review_decision);
+                pr.checks = Some(rollup.into_checks());
             }
         }
     }
-    let runs = runs(gh, &plan.repo)?;
-    let workflows = plan
-        .workflows
-        .then(|| workflows(gh, &plan.repo))
-        .transpose()?;
-    Ok(Fetched {
-        viewer,
-        prs,
-        runs,
-        workflows,
-    })
+    Ok((viewer, prs))
 }
 
 fn run_json<T: serde::de::DeserializeOwned>(gh: &Gh, args: &[String]) -> Result<T, String> {
@@ -129,10 +163,15 @@ const PULL_REQUESTS_QUERY: &str = "query($owner:String!,$name:String!,$after:Str
 repository(owner:$owner,name:$name){pullRequests(states:OPEN,first:25,after:$after,\
 orderBy:{field:UPDATED_AT,direction:DESC}){pageInfo{hasNextPage endCursor}nodes{\
 number title url author{login} headRefName baseRefName headRefOid isDraft \
-labels(first:30){nodes{name}} mergeable mergeStateStatus reviewDecision createdAt updatedAt \
+labels(first:30){nodes{name}} mergeable DETAILS createdAt updatedAt \
 closingIssuesReferences(first:10){nodes{number}}}}}}";
 
-fn pull_requests(gh: &Gh, owner: &str, name: &str) -> Result<Vec<ForgePullRequest>, String> {
+fn pull_requests(
+    gh: &Gh,
+    owner: &str,
+    name: &str,
+    details: bool,
+) -> Result<Vec<ForgePullRequest>, String> {
     #[derive(Deserialize)]
     struct Data {
         repository: Option<Repository>,
@@ -143,6 +182,14 @@ fn pull_requests(gh: &Gh, owner: &str, name: &str) -> Result<Vec<ForgePullReques
         pull_requests: Connection<PullRequestNode>,
     }
 
+    let query = PULL_REQUESTS_QUERY.replace(
+        "DETAILS",
+        if details {
+            "mergeStateStatus reviewDecision"
+        } else {
+            ""
+        },
+    );
     let mut prs = Vec::new();
     let mut after: Option<String> = None;
     loop {
@@ -150,7 +197,7 @@ fn pull_requests(gh: &Gh, owner: &str, name: &str) -> Result<Vec<ForgePullReques
         if let Some(cursor) = after.as_deref() {
             vars.push(("after", cursor));
         }
-        let data: Data = graphql(gh, PULL_REQUESTS_QUERY, &vars)?;
+        let data: Data = graphql(gh, &query, &vars)?;
         let page = data
             .repository
             .ok_or_else(|| format!("repository {owner}/{name} not found"))?
@@ -168,12 +215,12 @@ fn pull_requests(gh: &Gh, owner: &str, name: &str) -> Result<Vec<ForgePullReques
     Ok(prs)
 }
 
-fn checks(
+fn rollups(
     gh: &Gh,
     owner: &str,
     name: &str,
     numbers: &[u64],
-) -> Result<std::collections::HashMap<u64, ForgeChecks>, String> {
+) -> Result<std::collections::HashMap<u64, RollupPr>, String> {
     #[derive(Deserialize)]
     struct Data {
         repository: Option<std::collections::HashMap<String, Option<RollupPr>>>,
@@ -183,7 +230,7 @@ fn checks(
         .iter()
         .map(|number| {
             format!(
-                "pr{number}:pullRequest(number:{number}){{commits(last:1){{nodes{{commit{{\
+                "pr{number}:pullRequest(number:{number}){{mergeStateStatus reviewDecision commits(last:1){{nodes{{commit{{\
 statusCheckRollup{{state contexts(first:100){{nodes{{__typename \
 ...on CheckRun{{name status conclusion startedAt completedAt detailsUrl}} \
 ...on StatusContext{{context state createdAt targetUrl}}}}}}}}}}}}}}}}"
@@ -201,7 +248,7 @@ statusCheckRollup{{state contexts(first:100){{nodes{{__typename \
         .into_iter()
         .filter_map(|(alias, pr)| {
             let number = alias.strip_prefix("pr")?.parse().ok()?;
-            Some((number, pr?.into_checks()))
+            Some((number, pr?))
         })
         .collect())
 }
@@ -388,7 +435,10 @@ impl PullRequestNode {
 }
 
 #[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
 struct RollupPr {
+    merge_state_status: Option<String>,
+    review_decision: Option<String>,
     commits: Connection<RollupCommitNode>,
 }
 

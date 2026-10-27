@@ -18,7 +18,8 @@ echo "$*" >> "$dir/calls.log"
 case "$*" in
   *viewer*) echo '{"data":{"viewer":{"login":"me"}}}' ;;
   *statusCheckRollup*) cat "$dir/checks.json" ;;
-  *pullRequests*) cat "$dir/prs.json" ;;
+  *pullRequests*mergeStateStatus*) cat "$dir/prs.json" ;;
+  *pullRequests*) sed -e 's/"mergeStateStatus":"[A-Z]*",//' -e 's/"reviewDecision":[^,]*,//' "$dir/prs.json" ;;
   "run list"*) cat "$dir/runs.json" ;;
   "workflow list"*) cat "$dir/workflows.json" ;;
   *) echo "unexpected: $*" >&2; exit 2 ;;
@@ -27,10 +28,10 @@ esac
 
 const PRS: &str = r#"{"data":{"repository":{"pullRequests":{"pageInfo":{"hasNextPage":false,"endCursor":null},"nodes":[
  {"number":1,"title":"Mine","url":"https://github.com/o/n/pull/1","author":{"login":"me"},"headRefName":"feat-a","baseRefName":"main","headRefOid":"abc","isDraft":false,"labels":{"nodes":[{"name":"zealot:clean"}]},"mergeable":"MERGEABLE","mergeStateStatus":"BLOCKED","reviewDecision":"REVIEW_REQUIRED","createdAt":"2026-10-27T10:00:00Z","updatedAt":"2026-10-27T10:30:00Z","closingIssuesReferences":{"nodes":[{"number":123}]}},
- {"number":2,"title":"Theirs","url":"https://github.com/o/n/pull/2","author":{"login":"other"},"headRefName":"feat-b","baseRefName":"main","headRefOid":"def","isDraft":true,"labels":{"nodes":[]},"mergeable":"UNKNOWN","mergeStateStatus":"UNKNOWN","reviewDecision":null,"createdAt":"2026-10-26T10:00:00Z","updatedAt":"2026-10-26T10:30:00Z","closingIssuesReferences":{"nodes":[]}}
+ {"number":2,"title":"Theirs","url":"https://github.com/o/n/pull/2","author":{"login":"other"},"headRefName":"feat-b","baseRefName":"main","headRefOid":"def","isDraft":true,"labels":{"nodes":[]},"mergeable":"CONFLICTING","mergeStateStatus":"DIRTY","reviewDecision":null,"createdAt":"2026-10-26T10:00:00Z","updatedAt":"2026-10-26T10:30:00Z","closingIssuesReferences":{"nodes":[]}}
 ]}}}}"#;
 
-const CHECKS: &str = r#"{"data":{"repository":{"pr1":{"commits":{"nodes":[{"commit":{"statusCheckRollup":{"state":"PENDING","contexts":{"nodes":[
+const CHECKS: &str = r#"{"data":{"repository":{"pr1":{"mergeStateStatus":"BLOCKED","reviewDecision":"REVIEW_REQUIRED","commits":{"nodes":[{"commit":{"statusCheckRollup":{"state":"PENDING","contexts":{"nodes":[
  {"__typename":"CheckRun","name":"CI","status":"COMPLETED","conclusion":"SUCCESS","startedAt":"2026-10-27T10:01:00Z","completedAt":"2026-10-27T10:05:00Z","detailsUrl":"https://ci/1"},
  {"__typename":"StatusContext","context":"zealot","state":"PENDING","createdAt":"2026-10-27T10:02:00Z","targetUrl":null}
 ]}}}}]}}}}}"#;
@@ -338,4 +339,25 @@ fn discovery_reads_checkouts_and_pane_cwds() {
         super::snapshot_paths(&snapshot),
         ["/w/a", "/w/b"].map(PathBuf::from).into()
     );
+}
+
+#[test]
+fn unwatched_prs_keep_swept_merge_details_between_sweeps() {
+    let fixture = Fixture::new();
+    let swept = fixture.pool.refresh(REPO, None);
+    let light = fixture.pool.refresh(REPO, None);
+    assert_eq!(
+        fixture.calls("mergeStateStatus reviewDecision createdAt"),
+        1
+    );
+    assert_eq!(light.prs[1].merge_state, "DIRTY", "carried from the sweep");
+    assert_eq!(
+        light.prs[0].merge_state, "BLOCKED",
+        "watched PRs read it every fetch"
+    );
+    assert_eq!(
+        light.prs[0].review_decision.as_deref(),
+        Some("REVIEW_REQUIRED")
+    );
+    assert_eq!(light.prs, swept.prs);
 }
