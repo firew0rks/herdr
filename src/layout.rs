@@ -1360,11 +1360,16 @@ mod tests {
 
     #[test]
     fn split_root_clamps_ratio_and_closes_back_to_the_old_layout() {
-        let mut layout = sample_layout();
+        // Allocated ids only: `sample_layout`'s raw ids can collide with `alloc`.
+        let (mut layout, _) = TileLayout::new();
+        layout.split_focused(Direction::Vertical);
         let before = pane_rects(&layout);
 
         let new_id = layout.split_root(Direction::Horizontal, 2.0);
-        assert_eq!(pane_rects(&layout).last(), Some(&(new_id, Rect::new(90, 0, 10, 40))));
+        assert_eq!(
+            pane_rects(&layout).last(),
+            Some(&(new_id, Rect::new(90, 0, 10, 40)))
+        );
 
         layout.close_pane(new_id);
         assert_eq!(pane_rects(&layout), before);

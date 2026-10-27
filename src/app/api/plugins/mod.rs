@@ -2546,7 +2546,11 @@ command = ["sh", "-c", "sleep 1"]
             };
             plugin_pane.pane.pane_id
         };
-        let opened = [open("wide", false), open("board", true), open("board", false)];
+        let opened = [
+            open("wide", false),
+            open("board", true),
+            open("board", false),
+        ];
 
         let full_width = opened.map(|pane_id| {
             let (_, pane) = app.parse_pane_id(&pane_id).expect("pane id parses");
