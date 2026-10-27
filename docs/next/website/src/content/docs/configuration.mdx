@@ -589,6 +589,19 @@ On macOS this switches to the current ASCII-capable keyboard layout; on Windows 
 On Windows, support is currently limited to the Korean IME. With an IME for any other language, this setting leaves the input source unchanged.
 :::
 
+## Forge
+
+```toml
+[forge]
+enabled = false
+```
+
+Set `enabled = true` to have the server keep one cached GitHub snapshot per
+repo of your open workspaces, fetched with the `gh` CLI and served by
+`herdr forge snapshot` and the `forge.*` socket methods. Restart the server
+after changing it. See the socket API's Forge section for what it fetches and
+how often.
+
 ## Environment variables
 
 | Variable | Purpose |

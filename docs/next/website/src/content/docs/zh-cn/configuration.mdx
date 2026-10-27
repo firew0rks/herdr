@@ -585,6 +585,19 @@ switch_ascii_input_source_in_prefix = true
 目前 Windows 上的支持仅限于韩语 IME。使用其他语言的 IME 时，此设置不会改变输入源。
 :::
 
+## Forge
+
+```toml
+[forge]
+enabled = false
+```
+
+Set `enabled = true` to have the server keep one cached GitHub snapshot per
+repo of your open workspaces, fetched with the `gh` CLI and served by
+`herdr forge snapshot` and the `forge.*` socket methods. Restart the server
+after changing it. See the socket API's Forge section for what it fetches and
+how often.
+
 ## 环境变量
 
 | 变量 | 用途 |

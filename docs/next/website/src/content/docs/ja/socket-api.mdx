@@ -764,6 +764,70 @@ herdr agent wait w1:p1 --until blocked
 }
 ```
 
+## Forge
+
+With `[forge] enabled = true`, the server keeps one cached GitHub snapshot per
+repo so plugins and tools read it instead of each polling GitHub. It tracks the
+`origin` repo of every open workspace, plus any repo a client asks for (an ask
+keeps a repo tracked for 30 minutes). Fetches go through the `gh` CLI, so
+authentication stays with `gh`; the server looks for `gh` on its PATH, then in
+`/opt/homebrew/bin`, `~/.local/bin` and `/usr/local/bin`. Set `HERDR_FORGE_GH`
+to the real binary when a `gh` shim comes first on PATH.
+
+Each repo is fetched every 30 seconds, every 15 while a watched PR's checks are
+pending, and less often when no client has asked for it lately (4x after 5
+minutes, 15x after 30). Only one fetch per repo runs at a time. A failed fetch
+keeps the last good snapshot and marks it `stale` with the `error`. The last
+good snapshot is saved under the session directory and served straight away
+after a restart.
+
+| Method | Params | Result |
+| --- | --- | --- |
+| `forge.snapshot` | `repo?`, `cwd?` | `forge_snapshot` with the cached snapshot |
+| `forge.refresh` | `repo?`, `cwd?`, `pr?` | `forge_snapshot` after a fresh fetch |
+| `forge.gh` | `argv`, `cwd?` | `forge_gh` with `stdout`, `stderr`, `exit_code`, `cached` |
+
+`repo` is `owner/name`; without it the server uses the `origin` remote of `cwd`.
+Call `forge.refresh` after a write (merge, label, dispatch) so the change shows
+at once. Its `pr` also fetches that PR's checks for the next 30 minutes.
+
+```json
+{"repo":"owner/name","fetched_at":"2026-10-27T11:00:00Z","stale":false,"error":null,"viewer":"login",
+ "prs":[{"number":1,"title":"","author":"login","url":"","head":"branch","base":"main","head_sha":"",
+   "draft":false,"labels":["ready"],"mergeable":"MERGEABLE","merge_state":"CLEAN",
+   "review_decision":null,"created_at":"","updated_at":"","closing_issues":[123],"checks":null}],
+ "runs":[{"id":1,"workflow":"CI","title":"","branch":"","event":"push","status":"completed",
+   "conclusion":"success","created_at":"","url":""}],
+ "workflows":[{"id":1,"name":"","path":".github/workflows/ci.yml","state":"active"}]}
+```
+
+`checks` is fetched only for PRs authored by the `gh` user, PRs whose head
+branch is checked out in a tracked workspace, and PRs named by `forge.refresh`;
+asking for every open PR's rollup times out on busy repos. When present it is
+`{"state":"SUCCESS|FAILURE|PENDING|ERROR","contexts":[{"name","status","conclusion","started_at","completed_at","url"}]}`,
+with commit statuses mapped onto the check-run fields.
+
+Subscribe to `{ "type": "forge.updated" }` to hear when a repo's snapshot
+changes or goes stale. The event carries `repo`, `fetched_at` and `stale`; read
+the snapshot itself with `forge.snapshot`.
+
+`forge.gh` replays read-only `gh` commands (`api` GETs and graphql queries,
+`pr view|list|checks`, `run list|view`, `repo view`) from a 20-second cache
+keyed on the arguments and the caller's repo and branch; concurrent identical
+calls share one run. Anything else is refused with `not_cacheable`. From the
+CLI:
+
+```bash
+herdr forge snapshot --repo owner/name --json
+herdr forge refresh --pr 123 --json
+herdr forge gh -- pr view 123 --json state
+```
+
+`herdr forge gh` runs commands it can't cache, and every command when the
+server is unreachable, through the real `gh` directly, so a `gh` shim can call
+it unconditionally. Every `gh` the forge runs has `HERDR_FORGE_INNER=1` set, so
+a shim can tell not to call back in.
+
 ## プロトコルの安定性
 
 クライアント描画の Herdr UI は、ローカルサーバーと SSH サーバーに安定したエンドポイント世代を使います。クライアントとサーバーのビルドが一致する必要はありません。接続時にコアのスナップショット、画面、入力、blob コーデックを合意し、サーバーが対応 API メソッドと任意の能力を通知します。保存済み SSH マシンには、選択中のマシンだけがペイン画面を送信するための `surface_interest` と、通信のない接続の障害を検知する `health_check` が必要です。未対応のサーバーは明示的に更新するまで Attention になります。詳しくは[マシンへの接続](/ja/docs/connecting-machines/)を参照してください。メソッドがない場合は、そのサーバー上の該当アクションだけを無効にしてクライアント側通知を表示します。拒否やタイムアウトも接続を終了せず通知します。エンドポイント世代 1 より前のサーバーだけは最後の 1 回の更新が必要です。
