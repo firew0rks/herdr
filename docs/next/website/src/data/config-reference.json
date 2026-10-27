@@ -1469,6 +1469,18 @@
       ]
     },
     {
+      "id": "forge",
+      "title": "Forge",
+      "keys": [
+        {
+          "key": "forge.enabled",
+          "type": "boolean",
+          "default": "false",
+          "description": "Keep one cached GitHub snapshot per repo of your open worktrees on the server, fetched with the gh CLI and served by `forge.snapshot` and `herdr forge`. Restart the server after changing it."
+        }
+      ]
+    },
+    {
       "id": "advanced",
       "title": "Advanced",
       "keys": [

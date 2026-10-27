@@ -55,6 +55,12 @@ pub fn run_server() -> io::Result<()> {
         Err(err) => return Err(err),
     };
 
+    crate::forge::start(
+        &loaded_config.config.forge,
+        api_tx.clone(),
+        event_hub.clone(),
+    );
+
     let rt = tokio::runtime::Builder::new_multi_thread()
         .enable_all()
         .build()
@@ -205,6 +211,12 @@ fn run_handoff_import_server(socket_path: &Path, token: &str) -> io::Result<()> 
         if let Err(err) = crate::server::handoff::report_owned(&mut received.stream) {
             warn!(err = %err, "failed to report handoff ownership; continuing as owner");
         }
+        // Only now: the old server's pool keeps fetching until ownership moves.
+        crate::forge::start(
+            &loaded_config.config.forge,
+            api_tx.clone(),
+            event_hub.clone(),
+        );
         info!("handoff import server started");
         print_ready_message(&api::socket_path(), &client_socket_path());
         server.app.run_plugin_startup_hooks();
