@@ -387,6 +387,16 @@ impl App {
             &action.id,
         )
         .map_err(|(_, message)| message)?;
+        // A claimed click is consumed, so a handler that cannot launch must say so
+        // instead of swallowing the link.
+        if let Some(program) = action.command.first().filter(|program| {
+            !crate::plugin_command::program_exists(program, plugin.plugin_root.as_ref())
+        }) {
+            return Err(format!(
+                "plugin {} link handler {} cannot start: {program} not found",
+                plugin.plugin_id, handler.id
+            ));
+        }
         let Some(ws_idx) = self.state.active else {
             return Ok(false);
         };
@@ -906,7 +916,7 @@ platforms = ["linux", "macos", "windows"]
 [[actions]]
 id = "open"
 title = "Open note"
-command = ["never-launched"]
+command = ["./never-launched"]
 [[link_handlers]]
 id = "note"
 title = "Note"
@@ -914,6 +924,7 @@ pattern = "^obsidian://"
 action = "open"
 "#,
         );
+        std::fs::write(root.join("never-launched"), "").unwrap();
         link_manifest(&mut app, &root);
         app.state.plugin_commands_in_flight = runtime::MAX_PLUGIN_COMMANDS_IN_FLIGHT;
         let response = app.handle_pane_link_activate(
@@ -939,6 +950,69 @@ action = "open"
         assert!(
             rx.try_recv().is_err(),
             "activation must not write to the PTY"
+        );
+        std::fs::remove_dir_all(root).expect("remove test plugin");
+    }
+
+    #[tokio::test]
+    async fn pane_link_activation_reports_a_link_handler_whose_program_is_missing() {
+        let mut app = test_app();
+        app.state.workspaces = vec![crate::workspace::Workspace::test_new("missing-handler")];
+        app.state.ensure_test_terminals();
+        app.state.active = Some(0);
+        let pane_id = app.state.workspaces[0].tabs[0].root_pane;
+        let public_id = app.public_pane_id(0, pane_id).unwrap();
+        let terminal_id = app.state.workspaces[0].tabs[0].panes[&pane_id]
+            .attached_terminal_id
+            .clone();
+        let (runtime, _rx) = crate::terminal::TerminalRuntime::test_with_channel(80, 4);
+        runtime.test_process_pty_bytes(
+            b"PR \x1b]8;;https://github.com/o/r/pull/42\x07#42\x1b]8;;\x07",
+        );
+        app.terminal_runtimes.insert(terminal_id, runtime);
+        let root = unique_temp_path("missing-link-handler");
+        write_manifest_content(
+            &root,
+            r#"
+id = "example.missing-link"
+name = "Missing link handler"
+version = "0.1.0"
+min_herdr_version = "0.9.3"
+platforms = ["linux", "macos", "windows"]
+[[actions]]
+id = "open"
+title = "Open PR"
+command = ["herdr-test-program-that-is-not-installed", "open"]
+[[link_handlers]]
+id = "pr"
+title = "PR"
+pattern = "^https://github\\.com/"
+action = "open"
+"#,
+        );
+        link_manifest(&mut app, &root);
+        let response = app.handle_pane_link_activate(
+            "click".into(),
+            PaneLinkActivateParams {
+                pane_id: public_id,
+                viewport_row: 0,
+                col: 4,
+                content_revision: None,
+                offset_from_bottom: None,
+            },
+        );
+        let response: serde_json::Value = serde_json::from_str(&response).unwrap();
+        assert_eq!(
+            response["error"]["code"], "plugin_link_failed",
+            "{response}"
+        );
+        assert!(response["error"]["message"]
+            .as_str()
+            .unwrap()
+            .contains("herdr-test-program-that-is-not-installed"));
+        assert!(
+            app.state.plugin_commands_in_flight == 0,
+            "nothing was launched"
         );
         std::fs::remove_dir_all(root).expect("remove test plugin");
     }
