@@ -8428,3 +8428,98 @@ fn no_handle_internal_event_bypass_in_module() {
         bypass_lines.join("\n  ")
     );
 }
+
+/// Claude Code's fullscreen UI: alternate screen, SGR mouse reporting, a
+/// BEL-terminated OSC 8 PR link in the footer, and a plain-text URL.
+const CLAUDE_FOOTER_PR_LINK: &[u8] = b"\x1b[?1049h\x1b[?1000h\x1b[?1006h\x1b[2;5HPR \x1b]8;;https://github.com/o/r/pull/42\x07#42\x1b]8;;\x07\x1b[4;3Hsee https://example.com/t";
+
+#[tokio::test]
+async fn centred_pane_links_resolve_and_clicks_reach_the_text_column() {
+    for full_width in [false, true] {
+        let mut server = test_headless_server();
+        server.app.state.pane_max_width = 20;
+        let mut workspace = crate::workspace::Workspace::test_new("centred-link");
+        let pane = workspace.focused_pane_id().expect("focused pane");
+        let (runtime, mut input) = crate::terminal::TerminalRuntime::test_with_channel(80, 24);
+        workspace.insert_test_runtime(pane, runtime);
+        server.app.state.workspaces = vec![workspace];
+        server.app.state.active = Some(0);
+        server.app.state.selected = 0;
+        server.app.state.mode = crate::app::Mode::Terminal;
+        if full_width {
+            server.app.state.full_width_panes.insert(pane);
+        }
+        let pane_id = server.app.public_pane_id(0, pane).unwrap();
+        let (control, render) = connect_test_shell(&mut server, 1, 80, 24);
+        let _ = control.recv().expect("snapshot");
+        write_shared_test_pane(&mut server, pane, CLAUDE_FOOTER_PR_LINK);
+        server.render_and_stream();
+        let surface = std::iter::from_fn(|| render.try_recv().ok())
+            .filter_map(|bytes| match read_server_message(bytes) {
+                ServerMessage::PaneSurface(surface) => Some(surface),
+                _ => None,
+            })
+            .last()
+            .expect("pane surface");
+        let pane_surface = &surface.panes[0];
+        let inner = pane_surface.inner_rect;
+        assert_eq!(inner.width == 20, !full_width, "{inner:?}");
+        assert_eq!(inner.x > pane_surface.rect.x + 1, !full_width, "{inner:?}");
+
+        let width = usize::from(surface.frame.width);
+        let link = surface
+            .frame
+            .cells
+            .iter()
+            .position(|cell| cell.hyperlink.is_some())
+            .expect("hyperlink cell in the frame");
+        let (x, y) = ((link % width) as u16, (link / width) as u16);
+        assert_eq!(
+            (x - inner.x, y - inner.y),
+            (7, 1),
+            "the link sits where the app wrote it"
+        );
+
+        for (col, row, url) in [
+            (7, 1, "https://github.com/o/r/pull/42"),
+            (9, 3, "https://example.com/t"),
+        ] {
+            let response = server.app.handle_api_request(crate::api::schema::Request {
+                id: "click".into(),
+                method: crate::api::schema::Method::PaneLinkActivate(
+                    crate::api::schema::PaneLinkActivateParams {
+                        pane_id: pane_id.clone(),
+                        viewport_row: row,
+                        col,
+                        content_revision: Some(pane_surface.content_revision),
+                        offset_from_bottom: pane_surface
+                            .scroll
+                            .map(|metrics| metrics.offset_from_bottom),
+                    },
+                ),
+            });
+            let response: serde_json::Value = serde_json::from_str(&response).unwrap();
+            assert_eq!(response["result"]["url"], url, "{response}");
+        }
+
+        server.handle_server_event(ServerEvent::ClientShellPaneInput {
+            client_id: 1,
+            pane_id,
+            events: vec![crate::protocol::ClientPaneInputEvent::Mouse {
+                kind: crate::protocol::ClientMouseKind::Down(
+                    crate::protocol::ClientMouseButton::Left,
+                ),
+                position: crate::protocol::ClientMousePosition::Cell { column: 7, row: 1 },
+                geometry: None,
+                modifiers: crossterm::event::KeyModifiers::CONTROL.bits(),
+                lines: 0,
+            }],
+        });
+        assert_eq!(
+            std::iter::from_fn(|| input.try_recv().ok()).last(),
+            Some(Bytes::from_static(b"\x1b[<16;8;2M")),
+            "the app hears the click on its own link cell"
+        );
+        shutdown_test_runtimes(&mut server);
+    }
+}

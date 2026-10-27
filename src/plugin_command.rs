@@ -26,6 +26,20 @@ pub(crate) fn program_for_cwd(program: &str, cwd: &Path) -> PathBuf {
     }
 }
 
+/// Whether `program` names a file `command_for_argv_in_dir` can launch.
+pub(crate) fn program_exists(program: &str, cwd: &Path) -> bool {
+    let program = program_for_cwd(program, cwd);
+    if program.components().count() > 1 {
+        return program.is_file();
+    }
+    #[cfg(windows)]
+    if resolve_windows_program(program.as_os_str()).is_some() {
+        return true;
+    }
+    std::env::var_os("PATH")
+        .is_some_and(|paths| std::env::split_paths(&paths).any(|dir| dir.join(&program).is_file()))
+}
+
 #[cfg(not(windows))]
 fn command_for_program(program: &OsStr) -> Command {
     crate::noninteractive_process::command(program)

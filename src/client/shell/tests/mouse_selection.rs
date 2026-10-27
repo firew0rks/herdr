@@ -1230,3 +1230,93 @@ fn context_menu_keyboard_and_outside_click_are_client_owned() {
     assert!(outside.repaint);
     assert!(state.overlay.is_none());
 }
+
+/// A `pane_max_width` pane: the text column sits centred inside a wider pane.
+fn centred_surface() -> PaneSurfaceFrame {
+    let mut pane_surface = surface();
+    pane_surface.frame = FrameData::from_ratatui_buffer_with_hyperlinks(
+        &Buffer::empty(Rect::new(0, 0, 40, 4)),
+        None,
+        &[],
+    );
+    let pane = &mut pane_surface.panes[0];
+    pane.rect = SurfaceRect {
+        x: 0,
+        y: 0,
+        width: 40,
+        height: 4,
+    };
+    pane.inner_rect = SurfaceRect {
+        x: 10,
+        y: 0,
+        width: 20,
+        height: 4,
+    };
+    pane.mouse_reporting = true;
+    pane.alternate_screen_active = true;
+    pane_surface
+}
+
+#[test]
+fn centred_pane_clicks_use_columns_relative_to_the_text() {
+    let mut state = ClientShellState::new(ClientShellConfig::from_config(&Config::default()));
+    state.set_snapshot(Box::new(snapshot()));
+    state.set_pane_surface(centred_surface());
+    state.compose(106, 20).expect("pane frame");
+    let pane = state.hits.panes[0].clone();
+    assert_eq!(pane.inner_rect.x, pane.rect.x + 10);
+    let at = |modifiers| MouseEvent {
+        kind: MouseEventKind::Down(MouseButton::Left),
+        column: pane.inner_rect.x + 7,
+        row: pane.inner_rect.y + 1,
+        modifiers,
+    };
+
+    let link = state.handle_raw_events(vec![RawInputEvent::Mouse(at(KeyModifiers::CONTROL))]);
+    assert!(matches!(
+        &link.actions[..],
+        [ClientShellAction::Endpoint { request, .. }]
+            if matches!(&request.method,
+                crate::api::schema::Method::PaneLinkActivate(params)
+                    if params.col == 7 && params.viewport_row == 1)
+    ));
+    state.pending_requests.clear();
+
+    let click = state.handle_raw_events(vec![RawInputEvent::Mouse(at(KeyModifiers::ALT))]);
+    assert!(matches!(
+        &click.requests[..],
+        [ClientMessage::ClientShellPaneInput { events, .. }]
+            if matches!(&events[..], [ClientPaneInputEvent::Mouse {
+                position: ClientMousePosition::Cell { column: 7, row: 1 },
+                ..
+            }])
+    ));
+}
+
+#[test]
+fn centred_pane_pixel_clicks_are_relative_to_the_text() {
+    let mut state = ClientShellState::new(ClientShellConfig::from_config(&Config::default()));
+    state.set_snapshot(Box::new(snapshot()));
+    let mut pane_surface = centred_surface();
+    pane_surface.panes[0].sgr_pixel_mouse = true;
+    pane_surface.panes[0].pixel_width = 200;
+    pane_surface.panes[0].pixel_height = 80;
+    state.set_pane_surface(pane_surface);
+    state.compose(106, 20).expect("pane frame");
+    let pane = state.hits.panes[0].clone();
+    let geometry =
+        crate::input::mouse::HostGeometry::new(106, 20, 1060, 400).expect("host geometry");
+    // Six pixels into the host cell under text column 7, row 1 (reports are 1-based).
+    let x = u32::from(pane.inner_rect.x + 7) * 10 + 6;
+    let y = u32::from(pane.inner_rect.y + 1) * 20 + 6;
+
+    let outcome = state.handle_pixel_mouse(format!("\x1b[<0;{x};{y}M").as_bytes(), geometry);
+    assert!(matches!(
+        &outcome.requests[..],
+        [ClientMessage::ClientShellPaneInput { events, .. }]
+            if matches!(&events[..], [ClientPaneInputEvent::Mouse {
+                position: ClientMousePosition::Pixels { x: 76, y: 26, column: 7, row: 1 },
+                ..
+            }])
+    ));
+}
