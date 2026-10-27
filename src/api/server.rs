@@ -485,6 +485,10 @@ fn handle_connection_with_stop(
                 wait_for_output(request_id.clone(), params, &mut stream, api_tx, running)?;
             finish_wait_response(&mut stream, response, &request_id, method, changes_ui)
         }
+        forge @ (Method::ForgeSnapshot(_) | Method::ForgeRefresh(_) | Method::ForgeGh(_)) => {
+            let response = crate::forge::handle(request_id.clone(), forge);
+            finish_wait_response(&mut stream, Some(response), &request_id, method, changes_ui)
+        }
         method_body => {
             let (response_write_tx, response_write_rx) = std::sync::mpsc::channel();
             let stop_caller = matches!(method_body, Method::ServerStop(_))

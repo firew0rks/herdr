@@ -23,6 +23,7 @@ mod config;
 mod copy_mode;
 mod detect;
 mod events;
+mod forge;
 use ghostty_vt as ghostty;
 mod handoff_runtime;
 mod input;
@@ -416,6 +417,12 @@ const DEFAULT_CONFIG: &str = r##"# herdr configuration
 # Set false to run plain ssh against your ssh config unchanged — this does not
 # force keepalive or multiplexing off, it only stops herdr from adding its own.
 # manage_ssh_config = true
+
+[forge]
+# Keep one cached GitHub snapshot per repo of your open worktrees, fetched with
+# the gh CLI and served to plugins by `herdr forge snapshot`. Restart the
+# server after changing it.
+# enabled = false
 
 [experimental]
 # Allow launching herdr from inside a herdr-managed pane.
