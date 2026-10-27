@@ -206,6 +206,9 @@ mod tests {
             "plugin.pane.focus",
             "plugin.pane.close",
             "pane.full_width.toggle",
+            "forge.snapshot",
+            "forge.refresh",
+            "forge.gh",
         ]
         .into_iter()
         .collect::<BTreeSet<_>>();

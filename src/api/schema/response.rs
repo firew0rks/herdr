@@ -277,6 +277,16 @@ pub enum ResponseResult {
         active: bool,
         projection_revision: u64,
     },
+    ForgeSnapshot {
+        snapshot: Box<super::forge::ForgeSnapshot>,
+    },
+    /// A `gh` invocation replayed from the forge cache, or run on a cache miss.
+    ForgeGh {
+        stdout: String,
+        stderr: String,
+        exit_code: i32,
+        cached: bool,
+    },
     Ok {},
 }
 

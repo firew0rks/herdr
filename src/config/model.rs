@@ -323,6 +323,7 @@ pub struct Config {
     pub advanced: AdvancedConfig,
     pub experimental: ExperimentalConfig,
     pub remote: RemoteConfig,
+    pub forge: ForgeConfig,
 }
 
 #[derive(Debug)]
@@ -1062,6 +1063,14 @@ pub struct AdvancedConfig {
     /// Maximum scrollback buffer size in bytes retained per pane terminal. Default: 10000000.
     #[serde(alias = "scrollback_lines")]
     pub scrollback_limit_bytes: usize,
+}
+
+#[derive(Debug, Default, Deserialize)]
+#[serde(default)]
+pub struct ForgeConfig {
+    /// Keep one cached GitHub snapshot per repo on the server, served by
+    /// `forge.snapshot`. Fetches through the `gh` CLI. Default: false.
+    pub enabled: bool,
 }
 
 #[derive(Debug, Deserialize)]

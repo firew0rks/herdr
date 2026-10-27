@@ -723,6 +723,32 @@
                 "layout"
               ],
               "type": "object"
+            },
+            {
+              "properties": {
+                "fetched_at": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "repo": {
+                  "type": "string"
+                },
+                "stale": {
+                  "type": "boolean"
+                },
+                "type": {
+                  "const": "forge_updated",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "type",
+                "repo",
+                "stale"
+              ],
+              "type": "object"
             }
           ]
         },
@@ -753,7 +779,8 @@
             "pane_exited",
             "pane_agent_detected",
             "pane_agent_status_changed",
-            "layout_updated"
+            "layout_updated",
+            "forge_updated"
           ],
           "type": "string"
         },
@@ -2149,6 +2176,71 @@
           "required": [
             "match_event"
           ],
+          "type": "object"
+        },
+        "ForgeGhParams": {
+          "properties": {
+            "argv": {
+              "description": "Arguments after `gh`.",
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "cwd": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          "required": [
+            "argv"
+          ],
+          "type": "object"
+        },
+        "ForgeRefreshParams": {
+          "properties": {
+            "cwd": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "pr": {
+              "description": "Fetch this PR's checks too, and keep watching them for a while.",
+              "format": "uint64",
+              "minimum": 0,
+              "type": [
+                "integer",
+                "null"
+              ]
+            },
+            "repo": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          "type": "object"
+        },
+        "ForgeSnapshotParams": {
+          "properties": {
+            "cwd": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "repo": {
+              "description": "GitHub `owner/name`. Defaults to the `origin` remote of `cwd`.",
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
           "type": "object"
         },
         "IntegrationInstallParams": {
@@ -4267,6 +4359,18 @@
                 "type"
               ],
               "type": "object"
+            },
+            {
+              "properties": {
+                "type": {
+                  "const": "forge.updated",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "type"
+              ],
+              "type": "object"
             }
           ]
         },
@@ -6328,6 +6432,54 @@
             "params"
           ],
           "type": "object"
+        },
+        {
+          "properties": {
+            "method": {
+              "const": "forge.snapshot",
+              "type": "string"
+            },
+            "params": {
+              "$ref": "#/schemas/request/$defs/ForgeSnapshotParams"
+            }
+          },
+          "required": [
+            "method",
+            "params"
+          ],
+          "type": "object"
+        },
+        {
+          "properties": {
+            "method": {
+              "const": "forge.refresh",
+              "type": "string"
+            },
+            "params": {
+              "$ref": "#/schemas/request/$defs/ForgeRefreshParams"
+            }
+          },
+          "required": [
+            "method",
+            "params"
+          ],
+          "type": "object"
+        },
+        {
+          "properties": {
+            "method": {
+              "const": "forge.gh",
+              "type": "string"
+            },
+            "params": {
+              "$ref": "#/schemas/request/$defs/ForgeGhParams"
+            }
+          },
+          "required": [
+            "method",
+            "params"
+          ],
+          "type": "object"
         }
       ],
       "properties": {
@@ -7452,6 +7604,32 @@
                 "layout"
               ],
               "type": "object"
+            },
+            {
+              "properties": {
+                "fetched_at": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "repo": {
+                  "type": "string"
+                },
+                "stale": {
+                  "type": "boolean"
+                },
+                "type": {
+                  "const": "forge_updated",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "type",
+                "repo",
+                "stale"
+              ],
+              "type": "object"
             }
           ]
         },
@@ -7497,9 +7675,286 @@
             "pane_exited",
             "pane_agent_detected",
             "pane_agent_status_changed",
-            "layout_updated"
+            "layout_updated",
+            "forge_updated"
           ],
           "type": "string"
+        },
+        "ForgeCheckContext": {
+          "properties": {
+            "completed_at": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "conclusion": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "name": {
+              "type": "string"
+            },
+            "started_at": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "status": {
+              "type": "string"
+            },
+            "url": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          "required": [
+            "name",
+            "status"
+          ],
+          "type": "object"
+        },
+        "ForgeChecks": {
+          "properties": {
+            "contexts": {
+              "items": {
+                "$ref": "#/schemas/success_response/$defs/ForgeCheckContext"
+              },
+              "type": "array"
+            },
+            "state": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          "required": [
+            "contexts"
+          ],
+          "type": "object"
+        },
+        "ForgePullRequest": {
+          "properties": {
+            "author": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "base": {
+              "type": "string"
+            },
+            "checks": {
+              "anyOf": [
+                {
+                  "$ref": "#/schemas/success_response/$defs/ForgeChecks"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "closing_issues": {
+              "items": {
+                "format": "uint64",
+                "minimum": 0,
+                "type": "integer"
+              },
+              "type": "array"
+            },
+            "created_at": {
+              "type": "string"
+            },
+            "draft": {
+              "type": "boolean"
+            },
+            "head": {
+              "type": "string"
+            },
+            "head_sha": {
+              "type": "string"
+            },
+            "labels": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "merge_state": {
+              "type": "string"
+            },
+            "mergeable": {
+              "type": "string"
+            },
+            "number": {
+              "format": "uint64",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "review_decision": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "title": {
+              "type": "string"
+            },
+            "updated_at": {
+              "type": "string"
+            },
+            "url": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "number",
+            "title",
+            "url",
+            "head",
+            "base",
+            "head_sha",
+            "draft",
+            "labels",
+            "mergeable",
+            "merge_state",
+            "created_at",
+            "updated_at",
+            "closing_issues"
+          ],
+          "type": "object"
+        },
+        "ForgeRun": {
+          "properties": {
+            "branch": {
+              "type": "string"
+            },
+            "conclusion": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "created_at": {
+              "type": "string"
+            },
+            "event": {
+              "type": "string"
+            },
+            "id": {
+              "format": "uint64",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "status": {
+              "type": "string"
+            },
+            "title": {
+              "type": "string"
+            },
+            "url": {
+              "type": "string"
+            },
+            "workflow": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "id",
+            "workflow",
+            "title",
+            "branch",
+            "event",
+            "status",
+            "created_at",
+            "url"
+          ],
+          "type": "object"
+        },
+        "ForgeSnapshot": {
+          "properties": {
+            "error": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "fetched_at": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "prs": {
+              "items": {
+                "$ref": "#/schemas/success_response/$defs/ForgePullRequest"
+              },
+              "type": "array"
+            },
+            "repo": {
+              "type": "string"
+            },
+            "runs": {
+              "items": {
+                "$ref": "#/schemas/success_response/$defs/ForgeRun"
+              },
+              "type": "array"
+            },
+            "stale": {
+              "type": "boolean"
+            },
+            "viewer": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "workflows": {
+              "items": {
+                "$ref": "#/schemas/success_response/$defs/ForgeWorkflow"
+              },
+              "type": "array"
+            }
+          },
+          "required": [
+            "repo",
+            "stale",
+            "prs",
+            "runs",
+            "workflows"
+          ],
+          "type": "object"
+        },
+        "ForgeWorkflow": {
+          "properties": {
+            "id": {
+              "format": "uint64",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "name": {
+              "type": "string"
+            },
+            "path": {
+              "type": "string"
+            },
+            "state": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "id",
+            "name",
+            "path",
+            "state"
+          ],
+          "type": "object"
         },
         "InstalledPluginInfo": {
           "properties": {
@@ -10417,6 +10872,52 @@
                 "type",
                 "active",
                 "projection_revision"
+              ],
+              "type": "object"
+            },
+            {
+              "properties": {
+                "snapshot": {
+                  "$ref": "#/schemas/success_response/$defs/ForgeSnapshot"
+                },
+                "type": {
+                  "const": "forge_snapshot",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "type",
+                "snapshot"
+              ],
+              "type": "object"
+            },
+            {
+              "description": "A `gh` invocation replayed from the forge cache, or run on a cache miss.",
+              "properties": {
+                "cached": {
+                  "type": "boolean"
+                },
+                "exit_code": {
+                  "format": "int32",
+                  "type": "integer"
+                },
+                "stderr": {
+                  "type": "string"
+                },
+                "stdout": {
+                  "type": "string"
+                },
+                "type": {
+                  "const": "forge_gh",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "type",
+                "stdout",
+                "stderr",
+                "exit_code",
+                "cached"
               ],
               "type": "object"
             },

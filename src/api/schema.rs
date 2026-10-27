@@ -4,6 +4,7 @@ pub mod agents;
 pub mod commands;
 pub mod common;
 pub mod events;
+pub mod forge;
 pub mod integrations;
 pub(crate) mod operations;
 pub mod panes;
@@ -19,6 +20,7 @@ pub use agents::*;
 pub use commands::*;
 pub use common::*;
 pub use events::*;
+pub use forge::*;
 pub use integrations::*;
 pub use panes::*;
 pub use plugins::*;
@@ -146,6 +148,9 @@ operations::define_operations! {
     PluginPaneFocus(PluginPaneFocusParams) => "plugin.pane.focus", true, false;
     PluginPaneClose(PluginPaneCloseParams) => "plugin.pane.close", true, false;
     PaneFullWidthToggle(PaneTarget) => "pane.full_width.toggle", true, true;
+    ForgeSnapshot(ForgeSnapshotParams) => "forge.snapshot", false, false;
+    ForgeRefresh(ForgeRefreshParams) => "forge.refresh", false, false;
+    ForgeGh(ForgeGhParams) => "forge.gh", false, false;
 }
 
 #[cfg(test)]
