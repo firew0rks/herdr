@@ -673,6 +673,7 @@ impl Workspace {
     ) -> Option<std::io::Result<(usize, crate::workspace::tab::NewPane)>> {
         self.split_pane_with_runtime(
             pane_id,
+            false,
             direction,
             None,
             rows,
@@ -706,6 +707,7 @@ impl Workspace {
     ) -> Option<std::io::Result<(usize, crate::workspace::tab::NewPane)>> {
         self.split_pane_with_runtime(
             pane_id,
+            false,
             direction,
             Some(ratio),
             rows,
@@ -725,6 +727,7 @@ impl Workspace {
     pub fn split_pane_argv_command(
         &mut self,
         pane_id: PaneId,
+        root: bool,
         direction: Direction,
         rows: u16,
         cols: u16,
@@ -738,6 +741,7 @@ impl Workspace {
     ) -> Option<std::io::Result<(usize, crate::workspace::tab::NewPane)>> {
         self.split_pane_with_runtime(
             pane_id,
+            root,
             direction,
             None,
             rows,
@@ -771,6 +775,7 @@ impl Workspace {
     ) -> Option<std::io::Result<(usize, crate::workspace::tab::NewPane)>> {
         self.split_pane_with_runtime(
             pane_id,
+            false,
             direction,
             Some(ratio),
             rows,
@@ -790,6 +795,7 @@ impl Workspace {
     fn split_pane_with_runtime(
         &mut self,
         pane_id: PaneId,
+        root: bool,
         direction: Direction,
         ratio: Option<f32>,
         rows: u16,
@@ -811,6 +817,7 @@ impl Workspace {
         let new_pane = match if let Some(argv) = argv {
             tab.split_pane_argv(
                 pane_id,
+                root,
                 focus_new_pane,
                 direction,
                 ratio,

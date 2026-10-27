@@ -287,6 +287,9 @@ pub struct PluginManifestPane {
     pub width: Option<PopupSize>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub height: Option<PopupSize>,
+    /// Open with `pane_max_width` lifted, as if `pane.full_width.toggle` ran.
+    #[serde(default, skip_serializing_if = "super::is_false")]
+    pub full_width: bool,
     pub command: Vec<String>,
 }
 
@@ -457,6 +460,12 @@ cli_params! {
             .input(bindings::boolean("no-focus", false).order(9)),
         #[serde(default, skip_serializing_if = "HashMap::is_empty")]
         pub env: HashMap<String, String> => Field::new(HashMap::new()).input(bindings::environment().order(7)),
+        /// Split at the tab's layout root, so the new pane spans the whole tab.
+        #[serde(default, skip_serializing_if = "super::is_false")]
+        pub root: bool => Field::new(false).input(bindings::boolean("root", true).order(10)),
+        /// Open with `pane_max_width` lifted, as the manifest's `full_width` does.
+        #[serde(default, skip_serializing_if = "super::is_false")]
+        pub full_width: bool => Field::new(false).input(bindings::boolean("full-width", true).order(11)),
     }
 }
 

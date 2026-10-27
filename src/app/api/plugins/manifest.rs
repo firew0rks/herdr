@@ -82,6 +82,8 @@ struct RawPluginManifestPane {
     width: Option<PopupSize>,
     #[serde(default)]
     height: Option<PopupSize>,
+    #[serde(default)]
+    full_width: bool,
     command: Vec<String>,
 }
 
@@ -445,6 +447,7 @@ fn normalize_manifest_pane(
         placement: pane.placement,
         width: pane.width,
         height: pane.height,
+        full_width: pane.full_width,
         command,
     })
 }

@@ -101,6 +101,13 @@ pub(crate) enum NewPanePlacement {
         direction: Direction,
         ratio: f32,
     },
+    /// The pane created by splitting the root of `target`'s tab.
+    RootSplit {
+        ws_idx: usize,
+        target: PaneId,
+        direction: Direction,
+        ratio: f32,
+    },
     /// A pane split off and immediately zoomed over its tab.
     ZoomedOverlay,
     /// An existing pane in workspace `ws_idx` getting a new terminal.
@@ -150,6 +157,15 @@ pub(crate) fn new_pane_terminal_size(
             ratio,
         } => tab_for(ws_idx, target)
             .and_then(|tab| tab.layout.panes_after_split(area, target, direction, ratio))
+            .map(|(panes, new_index)| laid_out(panes, new_index))
+            .unwrap_or_else(alone),
+        NewPanePlacement::RootSplit {
+            ws_idx,
+            target,
+            direction,
+            ratio,
+        } => tab_for(ws_idx, target)
+            .map(|tab| tab.layout.panes_after_root_split(area, direction, ratio))
             .map(|(panes, new_index)| laid_out(panes, new_index))
             .unwrap_or_else(alone),
     };

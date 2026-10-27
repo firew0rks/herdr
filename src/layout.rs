@@ -152,6 +152,28 @@ impl TileLayout {
         Some((panes, index + 1))
     }
 
+    /// `panes_after_split` for `split_root`. The new pane is last and carries
+    /// the focused pane's id.
+    pub fn panes_after_root_split(
+        &self,
+        area: Rect,
+        direction: Direction,
+        ratio: f32,
+    ) -> (Vec<PaneInfo>, usize) {
+        let (first, second) = split_rect(area, direction, valid_split_ratio(ratio));
+        let mut panes = self.panes(first);
+        panes.push(PaneInfo {
+            id: self.focus,
+            rect: second,
+            inner_rect: second,
+            scrollbar_rect: None,
+            borders: Borders::NONE,
+            is_focused: false,
+        });
+        let index = panes.len() - 1;
+        (panes, index)
+    }
+
     /// Collect all split boundaries for mouse drag resize.
     pub fn splits(&self, area: Rect) -> Vec<SplitBorder> {
         let mut result = Vec::new();
@@ -189,6 +211,20 @@ impl TileLayout {
         let new_id = PaneId::alloc();
         *node = split_node(target, direction, new_id, valid_split_ratio(ratio));
         Some(new_id)
+    }
+
+    /// Split the whole layout, so the new pane spans the tab's full width
+    /// (`Vertical`) or height (`Horizontal`). Focus is left untouched.
+    pub fn split_root(&mut self, direction: Direction, ratio: f32) -> PaneId {
+        let new_id = PaneId::alloc();
+        let old = std::mem::replace(&mut self.root, Node::Pane(new_id));
+        self.root = Node::Split {
+            direction,
+            ratio: valid_split_ratio(ratio),
+            first: Box::new(old),
+            second: Box::new(Node::Pane(new_id)),
+        };
+        new_id
     }
 
     /// Insert an existing pane id next to a target pane without allocating a new
@@ -1304,6 +1340,47 @@ mod tests {
         assert_eq!(layout.focused(), pane(4));
         assert!(layout.close_focused());
         assert_eq!(layout.focused(), pane(2));
+    }
+
+    #[test]
+    fn split_root_spans_the_whole_layout_and_keeps_focus() {
+        let mut layout = sample_layout();
+        let before = pane_rects(&layout);
+
+        let new_id = layout.split_root(Direction::Vertical, 0.5);
+
+        let after = pane_rects(&layout);
+        assert_eq!(after.last(), Some(&(new_id, Rect::new(0, 20, 100, 20))));
+        assert_eq!(after.len(), before.len() + 1);
+        assert!(after[..before.len()]
+            .iter()
+            .all(|(_, rect)| rect.y + rect.height <= 20));
+        assert_eq!(layout.focused(), pane(2));
+    }
+
+    #[test]
+    fn split_root_clamps_ratio_and_closes_back_to_the_old_layout() {
+        let mut layout = sample_layout();
+        let before = pane_rects(&layout);
+
+        let new_id = layout.split_root(Direction::Horizontal, 2.0);
+        assert_eq!(pane_rects(&layout).last(), Some(&(new_id, Rect::new(90, 0, 10, 40))));
+
+        layout.close_pane(new_id);
+        assert_eq!(pane_rects(&layout), before);
+    }
+
+    #[test]
+    fn panes_after_root_split_matches_split_root() {
+        let mut layout = sample_layout();
+        let area = Rect::new(0, 0, 100, 40);
+        let (predicted, index) = layout.panes_after_root_split(area, Direction::Vertical, 0.3);
+
+        layout.split_root(Direction::Vertical, 0.3);
+
+        let rects = |panes: Vec<PaneInfo>| panes.iter().map(|p| p.rect).collect::<Vec<_>>();
+        assert_eq!(index, predicted.len() - 1);
+        assert_eq!(rects(predicted), rects(layout.panes(area)));
     }
 
     #[test]

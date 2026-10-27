@@ -1022,6 +1022,7 @@ fn plugin_link_list_unlink_round_trip() {
             placement: PluginPanePlacement::Overlay,
             width: None,
             height: None,
+            full_width: false,
             command: vec!["bun".into(), "run".into(), "board.ts".into()],
         }],
         link_handlers: vec![PluginManifestLinkHandler {
@@ -1409,6 +1410,8 @@ fn plugin_pane_open_request_round_trips() {
             direction: None,
             cwd: Some("/tmp".into()),
             focus: true,
+            root: false,
+            full_width: false,
             env: [("HERDR_ROLE".to_string(), "board".to_string())].into(),
         }),
     };

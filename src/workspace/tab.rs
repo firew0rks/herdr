@@ -219,6 +219,7 @@ impl Tab {
     ) -> std::io::Result<NewPane> {
         self.split_pane_with_runtime(
             self.layout.focused(),
+            false,
             true,
             direction,
             None,
@@ -258,6 +259,7 @@ impl Tab {
     ) -> std::io::Result<NewPane> {
         self.split_pane_with_runtime(
             target,
+            false,
             focus_new_pane,
             direction,
             ratio,
@@ -273,12 +275,13 @@ impl Tab {
         )
     }
 
-    /// Split `target` with an argv-command pane. Same focus contract as
-    /// `split_pane_shell`.
+    /// Split `target` with an argv-command pane, or the whole layout when
+    /// `root` is set. Same focus contract as `split_pane_shell`.
     #[allow(clippy::too_many_arguments)]
     pub(crate) fn split_pane_argv(
         &mut self,
         target: PaneId,
+        root: bool,
         focus_new_pane: bool,
         direction: Direction,
         ratio: Option<f32>,
@@ -293,6 +296,7 @@ impl Tab {
     ) -> std::io::Result<NewPane> {
         self.split_pane_with_runtime(
             target,
+            root,
             focus_new_pane,
             direction,
             ratio,
@@ -313,6 +317,7 @@ impl Tab {
     fn split_pane_with_runtime(
         &mut self,
         target: PaneId,
+        root: bool,
         focus_new_pane: bool,
         direction: Direction,
         ratio: Option<f32>,
@@ -326,10 +331,13 @@ impl Tab {
         launch_env: &PaneLaunchEnv,
         command: Option<SplitCommand<'_>>,
     ) -> std::io::Result<NewPane> {
-        let Some(new_id) = self
-            .layout
-            .split_pane(target, direction, ratio.unwrap_or(0.5))
-        else {
+        let ratio = ratio.unwrap_or(0.5);
+        let split = if root {
+            Some(self.layout.split_root(direction, ratio))
+        } else {
+            self.layout.split_pane(target, direction, ratio)
+        };
+        let Some(new_id) = split else {
             return Err(std::io::Error::new(
                 std::io::ErrorKind::NotFound,
                 "split target pane is not in the layout",

@@ -117,6 +117,13 @@ impl App {
         };
         let new_pane_placement = if placement == PluginPanePlacement::Zoomed {
             crate::ui::NewPanePlacement::ZoomedOverlay
+        } else if params.root {
+            crate::ui::NewPanePlacement::RootSplit {
+                ws_idx,
+                target: target_pane,
+                direction,
+                ratio: 0.5,
+            }
         } else {
             crate::ui::NewPanePlacement::Split {
                 ws_idx,
@@ -133,6 +140,7 @@ impl App {
         };
         let result = ws.split_pane_argv_command(
             target_pane,
+            params.root,
             direction,
             rows,
             cols,
@@ -300,6 +308,9 @@ impl App {
         self.state
             .remove_alias_shadowed_by_new_pane(new_pane.pane_id);
         self.state.terminals.insert(terminal_id, terminal);
+        if pane_manifest.full_width {
+            self.state.full_width_panes.insert(new_pane.pane_id);
+        }
         self.state.plugin_panes.insert(
             new_pane.pane_id,
             crate::app::state::PluginPaneRecord {
