@@ -143,6 +143,7 @@ pub(crate) fn keybind_help_groups(
                     "previous workspace",
                 ),
                 entry(binding_label(&keybinds.next_workspace), "next workspace"),
+                entry(binding_label(&keybinds.last_workspace), "last workspace"),
                 entry(
                     indexed_label(&keybinds.switch_workspace),
                     "switch workspace 1-9",

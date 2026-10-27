@@ -159,10 +159,13 @@ herdr workspace list
 herdr workspace create [--cwd PATH] [--label TEXT] [--env KEY=VALUE] [--focus] [--no-focus]
 herdr workspace get <workspace_id>
 herdr workspace focus <workspace_id>
+herdr workspace last
 herdr workspace rename <workspace_id> <label>
 herdr workspace report-metadata <workspace_id> --source ID [--token NAME=VALUE] [--clear-token NAME] [--seq N] [--ttl-ms N]
 herdr workspace close <workspace_id> [--group]
 ```
+
+`workspace last` focuses the workspace that was focused before the current one, whichever way it was focused; run it again to switch back. It fails with `no_last_workspace` when that workspace has closed.
 
 Create a workspace without stealing focus:
 

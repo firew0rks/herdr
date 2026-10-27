@@ -797,6 +797,8 @@ pub struct AppState {
     pub(crate) public_pane_id_aliases: std::collections::HashMap<String, PaneId>,
     pub workspaces: Vec<Workspace>,
     pub active: Option<usize>,
+    /// The workspace focused before `active`, for `workspace.last`.
+    pub(crate) last_workspace_id: Option<String>,
     pub(crate) previous_pane_focus: Option<PaneFocusTarget>,
     pub selected: usize,
     pub mode: Mode,
@@ -1045,6 +1047,7 @@ impl AppState {
             public_pane_id_aliases: std::collections::HashMap::new(),
             workspaces: Vec::new(),
             active: None,
+            last_workspace_id: None,
             previous_pane_focus: None,
             selected: 0,
             mode: Mode::Navigate,

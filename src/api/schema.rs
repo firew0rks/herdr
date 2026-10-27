@@ -148,6 +148,7 @@ operations::define_operations! {
     PluginPaneFocus(PluginPaneFocusParams) => "plugin.pane.focus", true, false;
     PluginPaneClose(PluginPaneCloseParams) => "plugin.pane.close", true, false;
     PaneFullWidthToggle(PaneTarget) => "pane.full_width.toggle", true, true;
+    WorkspaceLast(EmptyParams) => "workspace.last", true, true;
     ForgeSnapshot(ForgeSnapshotParams) => "forge.snapshot", false, false;
     ForgeRefresh(ForgeRefreshParams) => "forge.refresh", false, false;
     ForgeGh(ForgeGhParams) => "forge.gh", false, false;

@@ -275,6 +275,7 @@ impl HeadlessServer {
                 | Method::WorkspaceClose(_)
                 | Method::WorkspaceCreate(_)
                 | Method::WorkspaceFocus(_)
+                | Method::WorkspaceLast(_)
                 | Method::WorkspaceMove(_)
                 | Method::WorkspaceMoveBlock(_)
                 | Method::WorkspaceRename(_)
@@ -307,6 +308,7 @@ impl HeadlessServer {
                 | Method::WorkspaceClose(_)
                 | Method::WorkspaceCreate(_)
                 | Method::WorkspaceFocus(_)
+                | Method::WorkspaceLast(_)
                 | Method::WorktreeCreate(_)
                 | Method::WorktreeOpen(_)
                 | Method::WorktreeRemove(_)
@@ -854,6 +856,7 @@ impl HeadlessServer {
         let create_focus_requested = match &msg.request.method {
             api::schema::Method::WorkspaceCreate(params) => params.focus,
             api::schema::Method::TabCreate(params) => params.focus,
+            api::schema::Method::WorkspaceLast(_) => true,
             _ => false,
         };
         let inspect_pane_move = matches!(
