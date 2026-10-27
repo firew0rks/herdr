@@ -360,6 +360,7 @@ impl ClientShellState {
     ) -> bool {
         let changes_focus = match &method {
             crate::api::schema::Method::WorkspaceFocus(_)
+            | crate::api::schema::Method::WorkspaceLast(_)
             | crate::api::schema::Method::TabFocus(_)
             | crate::api::schema::Method::PaneFocus(_)
             | crate::api::schema::Method::PaneFocusDirection(_) => true,
@@ -963,6 +964,7 @@ impl ClientShellState {
                 self.reveal_workspace(&workspace_id);
                 Some(Method::WorkspaceFocus(WorkspaceTarget { workspace_id }))
             }
+            KeybindAction::LastWorkspace => Some(Method::WorkspaceLast(Default::default())),
             KeybindAction::SwitchTab(index) => {
                 let tabs = snapshot
                     .tabs

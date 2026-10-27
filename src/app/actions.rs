@@ -384,9 +384,29 @@ impl AppState {
             .is_some_and(|tab_idx| tab_idx == self.workspaces[ws_idx].active_tab)
     }
 
+    fn remember_left_workspace(&mut self, idx: usize) {
+        if let Some(left) = self
+            .active
+            .filter(|&active| active != idx)
+            .and_then(|active| self.workspaces.get(active))
+        {
+            self.last_workspace_id = Some(left.id.clone());
+        }
+    }
+
+    /// The previously focused workspace, if it is still open and not focused.
+    pub(crate) fn last_workspace_index(&self) -> Option<usize> {
+        let id = self.last_workspace_id.as_ref()?;
+        self.workspaces
+            .iter()
+            .position(|ws| &ws.id == id)
+            .filter(|&idx| self.active != Some(idx))
+    }
+
     pub fn switch_workspace(&mut self, idx: usize) {
         if idx < self.workspaces.len() {
             let previous_focus = self.current_pane_focus_target();
+            self.remember_left_workspace(idx);
             self.active = Some(idx);
             self.selected = idx;
             let workspace_id = self.workspaces[idx].id.clone();
@@ -417,6 +437,7 @@ impl AppState {
 
         let previous_focus = self.current_pane_focus_target();
         let workspace_changed = self.active != Some(ws_idx);
+        self.remember_left_workspace(ws_idx);
         self.active = Some(ws_idx);
         self.selected = ws_idx;
         let workspace_id = self.workspaces[ws_idx].id.clone();
@@ -2771,6 +2792,25 @@ mod tests {
 
         state.switch_workspace(1);
         assert!(state.workspaces[1].panes.get(&id).unwrap().seen);
+    }
+
+    #[test]
+    fn last_workspace_toggles_between_the_two_most_recent() {
+        let mut state = app_with_workspaces(&["a", "b", "c"]);
+        state.switch_workspace(1);
+        state.switch_workspace_tab(2, 0);
+        assert_eq!(state.last_workspace_index(), Some(1));
+        state.switch_workspace(1);
+        assert_eq!(state.last_workspace_index(), Some(2));
+    }
+
+    #[test]
+    fn last_workspace_skips_a_closed_workspace() {
+        let mut state = app_with_workspaces(&["a", "b", "c"]);
+        state.switch_workspace(1);
+        state.switch_workspace(2);
+        state.close_workspaces(vec![1]);
+        assert_eq!(state.last_workspace_index(), None);
     }
 
     #[test]

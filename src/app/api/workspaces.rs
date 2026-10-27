@@ -101,6 +101,23 @@ impl App {
         )
     }
 
+    pub(super) fn handle_workspace_last(&mut self, id: String) -> String {
+        let Some(index) = self.state.last_workspace_index() else {
+            return encode_error(
+                id,
+                "no_last_workspace",
+                "no previously focused workspace is open",
+            );
+        };
+        self.state.switch_workspace(index);
+        encode_success(
+            id,
+            ResponseResult::WorkspaceInfo {
+                workspace: self.workspace_info(index),
+            },
+        )
+    }
+
     pub(super) fn handle_workspace_rename(
         &mut self,
         id: String,
@@ -1013,6 +1030,37 @@ mod tests {
             &event.data,
             EventData::WorkspaceMetadataUpdated { workspace } if workspace.tokens.is_empty()
         )));
+    }
+
+    #[test]
+    fn api_workspace_last_toggles_and_skips_closed_workspaces() {
+        let (_api_tx, api_rx) = tokio::sync::mpsc::unbounded_channel();
+        let mut app = App::new(
+            &Config::default(),
+            crate::app::AppPolicy::TEST,
+            None,
+            api_rx,
+            crate::api::EventHub::default(),
+        );
+        app.state.workspaces = vec![Workspace::test_new("a"), Workspace::test_new("b")];
+        app.state.ensure_test_terminals();
+        app.state.active = Some(0);
+        let last = |app: &mut App| {
+            let response = app.handle_workspace_last("req".into());
+            serde_json::from_str::<SuccessResponse>(&response)
+                .ok()
+                .map(|_| app.state.workspaces[app.state.active.unwrap()].display_name())
+        };
+
+        assert_eq!(last(&mut app), None);
+        let b = app.public_workspace_id(1);
+        app.handle_workspace_focus("req".into(), WorkspaceTarget { workspace_id: b });
+        assert_eq!(last(&mut app).as_deref(), Some("a"));
+        assert_eq!(last(&mut app).as_deref(), Some("b"));
+        app.state.close_workspaces(vec![0]);
+        let response = app.handle_workspace_last("req".into());
+        let error: ErrorResponse = serde_json::from_str(&response).unwrap();
+        assert_eq!(error.error.code, "no_last_workspace");
     }
 
     #[test]

@@ -206,6 +206,7 @@ mod tests {
             "plugin.pane.focus",
             "plugin.pane.close",
             "pane.full_width.toggle",
+            "workspace.last",
         ]
         .into_iter()
         .collect::<BTreeSet<_>>();

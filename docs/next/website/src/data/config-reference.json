@@ -614,6 +614,12 @@
           "description": "Select the next workspace. Unset by default."
         },
         {
+          "key": "keys.last_workspace",
+          "type": "keybinding",
+          "default": "unset",
+          "description": "Focus the previously focused workspace, from any source (keys, sidebar, CLI). Press again to switch back. Unset by default; for example, last_workspace = \"prefix+tab\"."
+        },
+        {
           "key": "keys.previous_agent",
           "type": "keybinding",
           "default": "unset",
@@ -708,6 +714,12 @@
           "type": "keybinding",
           "default": "unset",
           "description": "Clear the focused pane screen and scrollback, keeping the current cursor line and its visible soft-wrapped rows. Sends no input to the running program and does nothing on the alternate screen (for example, Vim). Unset by default; for example, clear_pane = \"prefix+ctrl+k\"."
+        },
+        {
+          "key": "keys.full_width",
+          "type": "keybinding",
+          "default": "unset",
+          "description": "Toggle the focused pane between pane_max_width and full width. Not persisted across server restarts. Unset by default."
         },
         {
           "key": "keys.copy_mode",
@@ -992,6 +1004,12 @@
           "type": "boolean",
           "default": "true",
           "description": "Keep split panes visually separated instead of sharing divider borders."
+        },
+        {
+          "key": "ui.pane_max_width",
+          "type": "integer",
+          "default": "0",
+          "description": "Cap each pane's terminal at this many columns, centred in the pane. 0 fills the pane. keys.full_width lifts the cap for one pane."
         },
         {
           "key": "ui.show_agent_labels_on_pane_borders",

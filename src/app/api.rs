@@ -1070,6 +1070,7 @@ impl App {
             Method::WorkspaceFocus(target) => {
                 return self.handle_workspace_focus(request.id, target);
             }
+            Method::WorkspaceLast(_) => return self.handle_workspace_last(request.id),
             Method::WorkspaceRename(params) => {
                 return self.handle_workspace_rename(request.id, params);
             }

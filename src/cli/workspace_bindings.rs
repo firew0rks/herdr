@@ -125,7 +125,7 @@ impl Leaf {
     }
 }
 
-pub(crate) const LEAVES: [Leaf; 7] = [
+pub(crate) const LEAVES: [Leaf; 8] = [
     Leaf {
         name: "list",
         about: "List workspaces",
@@ -163,6 +163,14 @@ pub(crate) const LEAVES: [Leaf; 7] = [
         method: |matches| {
             WorkspaceTargetProjection::from_matches(matches).map(Method::WorkspaceFocus)
         },
+    },
+    Leaf {
+        name: "last",
+        about: "Focus the previously focused workspace",
+        id: "cli:workspace:last",
+        quiet: false,
+        arguments: WorkspaceListProjection::arguments,
+        method: |matches| WorkspaceListProjection::from_matches(matches).map(Method::WorkspaceLast),
     },
     Leaf {
         name: "rename",

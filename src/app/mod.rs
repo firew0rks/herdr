@@ -502,6 +502,7 @@ impl App {
             public_pane_id_aliases: std::collections::HashMap::new(),
             workspaces,
             active,
+            last_workspace_id: None,
             previous_pane_focus: None,
             selected,
             mode,
