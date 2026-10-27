@@ -980,7 +980,10 @@ at once. Its `pr` also fetches that PR's checks for the next 30 minutes.
 branch is checked out in a tracked workspace, and PRs named by `forge.refresh`;
 asking for every open PR's rollup times out on busy repos. When present it is
 `{"state":"SUCCESS|FAILURE|PENDING|ERROR","contexts":[{"name","status","conclusion","started_at","completed_at","url"}]}`,
-with commit statuses mapped onto the check-run fields.
+with commit statuses mapped onto the check-run fields. GitHub computes
+`merge_state` and `review_decision` on read, which is slow, so the forge reads
+them on every fetch only for those same PRs; other PRs get them from a sweep
+every 5 minutes.
 
 Subscribe to `{ "type": "forge.updated" }` to hear when a repo's snapshot
 changes or goes stale. The event carries `repo`, `fetched_at` and `stale`; read
