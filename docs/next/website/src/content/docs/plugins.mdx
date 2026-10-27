@@ -325,6 +325,12 @@ height = 20
 command = ["sh", "picker.sh"]
 ```
 
+A split normally divides the target pane. Pass `root: true` (`--root`) with
+`placement = "split"` to split the whole tab instead, so a `down` split sits
+below every column. Set `full_width = true` on a `[[panes]]` entry, or pass
+`full_width: true` (`--full-width`) when opening, to start the pane with
+`pane_max_width` lifted, as `pane.full_width.toggle` does.
+
 Split, tab, zoomed, and overlay plugin panes are normal Herdr panes after they
 open. Plugins can call standard pane APIs such as `pane.move`, `pane.swap`,
 `pane.resize`, and `pane.zoom` through the socket or CLI; Herdr keeps plugin

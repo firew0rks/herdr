@@ -518,7 +518,7 @@ herdr plugin log list [--plugin ID] [--limit N]
 Managed terminal panes:
 
 ```bash
-herdr plugin pane open --plugin ID --entrypoint ID [--placement overlay|popup|split|tab|zoomed] [--width SIZE] [--height SIZE] [--workspace ID] [--target-pane PANE] [--direction right|down] [--cwd PATH] [--env KEY=VALUE] [--focus|--no-focus]
+herdr plugin pane open --plugin ID --entrypoint ID [--placement overlay|popup|split|tab|zoomed] [--width SIZE] [--height SIZE] [--workspace ID] [--target-pane PANE] [--direction right|down] [--cwd PATH] [--env KEY=VALUE] [--focus|--no-focus] [--root] [--full-width]
 herdr plugin pane focus <pane_id>
 herdr plugin pane close <pane_id>
 ```
@@ -533,6 +533,11 @@ cells or percentages such as `80%`; omitted dimensions default to half the
 terminal size, and values smaller than the popup minimum are clamped. A popup
 is not a Herdr pane, does not export `HERDR_PANE_ID`, and does not participate
 in pane or agent APIs. Native non-terminal plugin panes are outside plugin v1.
+
+`--root` splits at the tab's layout root rather than the target pane, so a
+`--direction down` split spans the whole tab width; it requires `--placement
+split`. `--full-width` opens the pane with `pane_max_width` lifted, like
+`pane.full_width.toggle`.
 
 New panes identify as `TERM_PROGRAM=herdr`, with `TERM_PROGRAM_VERSION` set to
 Herdr's version. They keep `TERM=xterm-256color` and `COLORTERM=truecolor`.

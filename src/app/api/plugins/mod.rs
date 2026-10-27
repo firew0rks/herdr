@@ -499,6 +499,7 @@ impl App {
         .display()
         .to_string();
         let placement = params.placement.unwrap_or(pane.placement);
+        pane.full_width |= params.full_width;
         if placement != PluginPanePlacement::Popup
             && (params.width.is_some() || params.height.is_some())
         {
@@ -506,6 +507,13 @@ impl App {
                 id,
                 "invalid_params",
                 "width and height are only supported when placement is popup",
+            );
+        }
+        if placement != PluginPanePlacement::Split && params.root {
+            return encode_error(
+                id,
+                "invalid_params",
+                "root is only supported when placement is split",
             );
         }
         if placement == PluginPanePlacement::Popup && self.state.popup_pane.is_some() {
@@ -1673,6 +1681,8 @@ platforms = ["linux", "macos"]
                 direction: None,
                 cwd: None,
                 focus: false,
+                root: false,
+                full_width: false,
                 env: std::collections::HashMap::new(),
             }),
         });
@@ -1700,6 +1710,39 @@ platforms = ["linux", "macos"]
                 direction: Some(crate::api::schema::SplitDirection::Right),
                 cwd: None,
                 focus: false,
+                root: false,
+                full_width: false,
+                env: std::collections::HashMap::new(),
+            }),
+        });
+
+        let value: serde_json::Value = serde_json::from_str(&response).unwrap();
+        assert_eq!(value["error"]["code"], "invalid_params");
+        let _ = std::fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn plugin_pane_open_rejects_root_for_non_split_placement() {
+        let mut app = test_app();
+        let root = unique_temp_path("plugin-pane-non-split-root-param");
+        write_manifest(&root);
+        link_manifest(&mut app, &root);
+
+        let response = app.handle_api_request(Request {
+            id: "pane-open-root".into(),
+            method: Method::PluginPaneOpen(PluginPaneOpenParams {
+                plugin_id: "example.worktree-bootstrap".into(),
+                entrypoint: "board".into(),
+                placement: Some(PluginPanePlacement::Popup),
+                width: None,
+                height: None,
+                workspace_id: None,
+                target_pane_id: None,
+                direction: None,
+                cwd: None,
+                focus: false,
+                root: true,
+                full_width: false,
                 env: std::collections::HashMap::new(),
             }),
         });
@@ -1816,6 +1859,8 @@ command = ["cmd.exe", "/d", "/c", "slot.cmd", "default"]
                     direction: None,
                     cwd: cwd.map(|path| path.display().to_string()),
                     focus: false,
+                    root: false,
+                    full_width: false,
                     env: std::collections::HashMap::new(),
                 }),
             });
@@ -1936,6 +1981,8 @@ command = ["sh", "-c", '"$HERDR_BIN_PATH" --list >/dev/null; printf "%s\n" "$?" 
                     direction: None,
                     cwd: None,
                     focus: true,
+                    root: false,
+                    full_width: false,
                     env: std::collections::HashMap::new(),
                 }),
             });
@@ -2040,6 +2087,8 @@ command = ["sh", "-c", "printf '%s\n%s\n%s\n%s\n%s\n%s\n%s\n%s\n%s\n' \"$PWD\" \
                 direction: None,
                 cwd: None,
                 focus: true,
+                root: false,
+                full_width: false,
                 env: std::collections::HashMap::from([
                     ("HERDR_PLUGIN_ID".to_string(), "spoofed-plugin".to_string()),
                     (
@@ -2147,6 +2196,8 @@ command = ["sh", "-c", "printf '%s\n%s\n%s\n' \"$HERDR_PLUGIN_ROOT\" \"$HERDR_PL
                 direction: None,
                 cwd: None,
                 focus: true,
+                root: false,
+                full_width: false,
                 env: std::collections::HashMap::from([
                     (
                         "HERDR_PLUGIN_ROOT".to_string(),
@@ -2250,6 +2301,8 @@ command = ["sh", "-c", "sleep 1"]
                 direction: None,
                 cwd: None,
                 focus: true,
+                root: false,
+                full_width: false,
                 env: std::collections::HashMap::new(),
             }),
         });
@@ -2333,6 +2386,8 @@ command = ["sh", "-c", "sleep 1"]
                 direction: Some(crate::api::schema::SplitDirection::Right),
                 cwd: None,
                 focus: true,
+                root: false,
+                full_width: false,
                 env: std::collections::HashMap::new(),
             }),
         });
@@ -2355,6 +2410,153 @@ command = ["sh", "-c", "sleep 1"]
             crate::api::schema::EventData::LayoutUpdated { layout }
                 if layout.zoomed && layout.panes.len() == 2
         ));
+
+        for (_, runtime) in app.terminal_runtimes.drain() {
+            runtime.shutdown();
+        }
+        let _ = std::fs::remove_dir_all(root);
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn plugin_pane_open_root_split_spans_the_tab() {
+        let mut app = test_app();
+        app.state.workspaces = vec![crate::workspace::Workspace::test_new("plugin-root")];
+        app.state.ensure_test_terminals();
+        app.state.active = Some(0);
+        app.state.selected = 0;
+        app.state.mode = crate::app::Mode::Terminal;
+
+        let root = unique_temp_path("plugin-pane-root-split");
+        write_manifest_content(
+            &root,
+            r#"
+id = "example.split"
+name = "Split Plugin"
+version = "0.1.0"
+min_herdr_version = "0.6.10"
+platforms = ["linux", "macos"]
+
+[[panes]]
+id = "board"
+title = "Plugin Board"
+placement = "split"
+command = ["sh", "-c", "sleep 1"]
+"#,
+        );
+        link_manifest(&mut app, &root);
+
+        let mut open = |direction, split_root| {
+            let open = app.handle_api_request(Request {
+                id: "pane-open-root".into(),
+                method: Method::PluginPaneOpen(PluginPaneOpenParams {
+                    plugin_id: "example.split".into(),
+                    entrypoint: "board".into(),
+                    placement: Some(PluginPanePlacement::Split),
+                    width: None,
+                    height: None,
+                    workspace_id: None,
+                    target_pane_id: None,
+                    direction: Some(direction),
+                    cwd: None,
+                    focus: false,
+                    root: split_root,
+                    full_width: false,
+                    env: std::collections::HashMap::new(),
+                }),
+            });
+            let ResponseResult::PluginPaneOpened { plugin_pane } = response_result(&open) else {
+                panic!("expected plugin pane opened response: {open}");
+            };
+            plugin_pane.pane.pane_id
+        };
+        open(crate::api::schema::SplitDirection::Right, false);
+        let bottom = open(crate::api::schema::SplitDirection::Down, true);
+
+        let (ws_idx, bottom) = app.parse_pane_id(&bottom).expect("pane id parses");
+        let area = ratatui::layout::Rect::new(0, 0, 100, 40);
+        let panes = app.state.workspaces[ws_idx].tabs[0].layout.panes(area);
+        let rect = panes.iter().find(|info| info.id == bottom).unwrap().rect;
+        assert_eq!(rect, ratatui::layout::Rect::new(0, 20, 100, 20));
+        assert_eq!(panes.len(), 3);
+
+        for (_, runtime) in app.terminal_runtimes.drain() {
+            runtime.shutdown();
+        }
+        let _ = std::fs::remove_dir_all(root);
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn plugin_pane_open_starts_full_width_from_manifest_or_param() {
+        let mut app = test_app();
+        app.state.workspaces = vec![crate::workspace::Workspace::test_new("plugin-wide")];
+        app.state.ensure_test_terminals();
+        app.state.active = Some(0);
+        app.state.selected = 0;
+        app.state.mode = crate::app::Mode::Terminal;
+
+        let root = unique_temp_path("plugin-pane-full-width");
+        write_manifest_content(
+            &root,
+            r#"
+id = "example.wide"
+name = "Wide Plugin"
+version = "0.1.0"
+min_herdr_version = "0.6.10"
+platforms = ["linux", "macos"]
+
+[[panes]]
+id = "wide"
+title = "Wide"
+placement = "split"
+full_width = true
+command = ["sh", "-c", "sleep 1"]
+
+[[panes]]
+id = "board"
+title = "Board"
+placement = "split"
+command = ["sh", "-c", "sleep 1"]
+"#,
+        );
+        link_manifest(&mut app, &root);
+
+        let mut open = |entrypoint: &str, full_width| {
+            let open = app.handle_api_request(Request {
+                id: format!("pane-open-{entrypoint}"),
+                method: Method::PluginPaneOpen(PluginPaneOpenParams {
+                    plugin_id: "example.wide".into(),
+                    entrypoint: entrypoint.into(),
+                    placement: None,
+                    width: None,
+                    height: None,
+                    workspace_id: None,
+                    target_pane_id: None,
+                    direction: None,
+                    cwd: None,
+                    focus: false,
+                    root: false,
+                    full_width,
+                    env: std::collections::HashMap::new(),
+                }),
+            });
+            let ResponseResult::PluginPaneOpened { plugin_pane } = response_result(&open) else {
+                panic!("expected plugin pane opened response: {open}");
+            };
+            plugin_pane.pane.pane_id
+        };
+        let opened = [
+            open("wide", false),
+            open("board", true),
+            open("board", false),
+        ];
+
+        let full_width = opened.map(|pane_id| {
+            let (_, pane) = app.parse_pane_id(&pane_id).expect("pane id parses");
+            app.state.full_width_panes.contains(&pane)
+        });
+        assert_eq!(full_width, [true, true, false]);
 
         for (_, runtime) in app.terminal_runtimes.drain() {
             runtime.shutdown();
@@ -2412,6 +2614,8 @@ command = ["sh", "-c", "sleep 1"]
                 direction: None,
                 cwd: None,
                 focus: true,
+                root: false,
+                full_width: false,
                 env: std::collections::HashMap::new(),
             }),
         });
@@ -2497,6 +2701,8 @@ command = ["sh", "-c", "printf %s ${{HERDR_PANE_ID-unset}} > '{}'; sleep 1"]
                 direction: None,
                 cwd: None,
                 focus: true,
+                root: false,
+                full_width: false,
                 env: std::collections::HashMap::new(),
             }),
         };
@@ -2694,6 +2900,8 @@ command = ["sh", "-c", "printf %s ${{HERDR_PANE_ID-unset}} > '{}'; sleep 1"]
                 direction: None,
                 cwd: None,
                 focus: true,
+                root: false,
+                full_width: false,
                 env: std::collections::HashMap::new(),
             }),
         });
@@ -2761,6 +2969,8 @@ command = ["sh", "-c", "printf %s ${{HERDR_PANE_ID-unset}} > '{}'; sleep 1"]
                 direction: None,
                 cwd: None,
                 focus: true,
+                root: false,
+                full_width: false,
                 env: std::collections::HashMap::new(),
             }),
         });

@@ -3747,6 +3747,10 @@
               "default": false,
               "type": "boolean"
             },
+            "full_width": {
+              "description": "Open with `pane_max_width` lifted, as the manifest's `full_width` does.",
+              "type": "boolean"
+            },
             "height": {
               "anyOf": [
                 {
@@ -3769,6 +3773,10 @@
             },
             "plugin_id": {
               "type": "string"
+            },
+            "root": {
+              "description": "Split at the tab's layout root, so the new pane spans the whole tab.",
+              "type": "boolean"
             },
             "target_pane_id": {
               "type": [
@@ -9437,6 +9445,10 @@
                 "string",
                 "null"
               ]
+            },
+            "full_width": {
+              "description": "Open with `pane_max_width` lifted, as if `pane.full_width.toggle` ran.",
+              "type": "boolean"
             },
             "height": {
               "anyOf": [

@@ -481,6 +481,7 @@ impl App {
             let previous_zoomed = ws.active_tab().map(|tab| tab.zoomed).unwrap_or(false);
             let result = ws.split_pane_argv_command(
                 previous_focus,
+                false,
                 Direction::Horizontal,
                 rows,
                 cols,
